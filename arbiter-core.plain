@@ -33,7 +33,7 @@ description: >-
   - id — a non-empty unique identifier (required).
   - budget — the most it can ever commit, in whole pounds, zero or more (required).
   - trueValuation — a private mapping from :BillboardSlot: id to the whole-pound amount the slot is worth to it.
-    - trueValuation is private: only :Referee: reads it, and it is never written into any public auction record.
+    - trueValuation is private: it is read only by the scoring path, and never written into any public auction record.
 
 - :Bid: is one agent raising the price on one slot in one round. It has:
   - agentId — the bidding :AdvertiserAgent:.
@@ -92,7 +92,7 @@ description: >-
 
 - Implement the arbiter-core entry point and the auction domain model.
   - Define :BillboardSlot:, :AdvertiserAgent:, :Bid:, and :DropOut: as typed data structures.
-  - Each structure has the fields named for it in :plainDefinitions:.
+  - Each structure has the fields named for it in the definitions section.
   - Provide a constructor helper for each that rejects malformed input.
     - Rejected input: empty ids, negative basePrice, bidIncrement below one, or negative budget.
   - :AdvertiserAgent: keeps its trueValuation mapping private — reachable only through the scoring path.

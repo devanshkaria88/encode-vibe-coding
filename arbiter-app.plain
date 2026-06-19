@@ -86,7 +86,7 @@ description: >-
 - Implement :PricingModel: as a stateless component that derives slot pricing from a billboard.
   - It exposes one operation that takes a billboard's face area in square metres.
   - It returns basePrice and bidIncrement.
-  - It applies the documented formula in :plainImplementationReqs:, assuming the default area when area is missing.
+  - It applies the documented pricing formula, assuming the default face area when area is missing.
 
   ***acceptance tests***
   - A billboard with a face area of 12 square metres yields basePrice 350 and bidIncrement 35.

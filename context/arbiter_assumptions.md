@@ -93,3 +93,15 @@ Scenarios (slot basePrice 100, bidIncrement 10 unless noted):
 
 ## Bounties targeted
 - Codeplain (primary), BGA, Solvimon, Vercel. **Not** Sui, FLock, or Bilt.
+
+## Render fixes (after first `codeplain` attempt hit "maximum recursion depth exceeded")
+Root cause was a concept-graph cycle; bisected with `--dry-run`. Three fixes applied:
+1. **Concept cycle:** `:AdvertiserAgent:` named `:Referee:` ("only :Referee: reads it") — a back-edge to a
+   later concept that references `:AdvertiserAgent:`, closing a cycle. The requires-loader recursed on it
+   forever (the app's "maximum recursion depth exceeded"). Reworded to "read only by the scoring path".
+2. **Linked-resource path escape:** `template/node-testing-base.plain` linked `../test_scripts/...`, which
+   escapes the module directory (links must be same-folder-or-below). Dropped the markdown links; the scripts
+   stay wired through `config.yaml`, which is the functional mechanism.
+3. **Predefined tokens in prose:** removed `:plainDefinitions:` / `:plainImplementationReqs:` references from
+   functional-spec text — those predefined tokens aren't resolvable as concept references in a module.
+Both modules now pass `codeplain <module>.plain --dry-run` (core 8/8, app 16/16, no cycles, no complexity flags).
