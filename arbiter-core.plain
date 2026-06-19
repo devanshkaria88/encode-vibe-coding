@@ -1,0 +1,192 @@
+---
+import:
+  - node-testing-base
+exported_concepts:
+  - ":BillboardSlot:"
+  - ":AdvertiserAgent:"
+  - ":Bid:"
+  - ":DropOut:"
+  - ":AuctionEvent:"
+  - ":AuctionLog:"
+  - ":AuctionValidator:"
+  - ":ClearingResult:"
+  - ":ClearingEngine:"
+  - ":FairPrice:"
+  - ":ConcessionError:"
+  - ":AgentScorecard:"
+  - ":Referee:"
+description: >-
+  Pure, deterministic clearing engine and referee for the Arbiter billboard
+  auction. No LLM, no network, no UI. Built first; the app requires it and never
+  modifies it.
+---
+
+***definitions***
+
+- :BillboardSlot: is one piece of billboard inventory put up for auction. It has:
+  - id — a non-empty unique identifier (required).
+  - name — a short human-readable label (required).
+  - basePrice — the opening price in whole pounds, zero or more (required).
+  - bidIncrement — the minimum raise in whole pounds, one or more (required).
+
+- :AdvertiserAgent: is a competitor in the auction that bids for :BillboardSlot: items. It has:
+  - id — a non-empty unique identifier (required).
+  - budget — the most it can ever commit, in whole pounds, zero or more (required).
+  - trueValuation — a private mapping from :BillboardSlot: id to the whole-pound amount the slot is worth to it.
+    - trueValuation is private: only :Referee: reads it, and it is never written into any public auction record.
+
+- :Bid: is one agent raising the price on one slot in one round. It has:
+  - agentId — the bidding :AdvertiserAgent:.
+  - slotId — the contested :BillboardSlot:.
+  - round — the round number the bid was placed in.
+  - amount — the new standing bid in whole pounds.
+
+- :DropOut: is one agent leaving the contest for one slot in one round. It has:
+  - agentId — the leaving :AdvertiserAgent:.
+  - slotId — the abandoned :BillboardSlot:.
+  - round — the round number the agent left in.
+  - priceAtDropOut — the standing bid the agent declined to beat when it left, in whole pounds.
+
+- :AuctionEvent: is a single entry in the auction record — either a :Bid: or a :DropOut:.
+
+- :AuctionLog: is an ordered, append-only record of every :AuctionEvent: across all slots, in the order they happened.
+
+- :AuctionValidator: checks an :AuctionLog: against the auction rules.
+  - It reports either that the log is valid or the list of rule violations it found.
+
+- :ClearingResult: is the outcome for one :BillboardSlot:. It has:
+  - the :BillboardSlot:.
+  - winner — the winning :AdvertiserAgent:, or none if no agent bid.
+  - clearingPrice — the whole-pound price the winner pays, or none if no agent bid.
+  - auditTrail — the ordered list of :AuctionEvent: items for that slot.
+
+- :ClearingEngine: turns a validated :AuctionLog: and a set of :BillboardSlot: items into one :ClearingResult: per slot.
+
+- :FairPrice: is, for one :BillboardSlot:, the benchmark price the winner should have paid in a fair contest.
+
+- :ConcessionError: is a flagged sub-optimal action by an :AdvertiserAgent:, with a plain-language reason. It has:
+  - agentId, slotId, round.
+  - type — either "overbid-while-uncontested" or "premature-drop".
+  - reason — a plain-language sentence quoting the exact amounts involved.
+
+- :AgentScorecard: is the per-agent report. For one :AdvertiserAgent: it has:
+  - surplusCaptured — total value won minus paid, in whole pounds.
+  - overpayment — total paid above :FairPrice: across slots it won, in whole pounds.
+  - leftOnTable — total value it walked away from by dropping too early, in whole pounds.
+  - concessionErrors — the list of :ConcessionError: items charged to the agent.
+
+- :Referee: computes :FairPrice: per slot and one :AgentScorecard: per :AdvertiserAgent:.
+  - It works from the :ClearingResult: set, the :AuctionLog:, and the agents with their private trueValuation.
+
+***implementation reqs***
+
+- :Implementation: of arbiter-core is a pure, deterministic library.
+  - It does no network access, no LLM calls, no user interface, no file or environment access.
+  - The same inputs always produce exactly the same outputs.
+- All monetary values are whole-pound integers; no floating-point money is used anywhere, so the maths stays exact.
+- :Implementation: code lives under `src/core/`, split into modules: model, log, validator, clearing, referee.
+- :Implementation: exposes a single entry module `src/core/index.ts`.
+  - It re-exports every concept listed in exported_concepts, so a downstream app can import them by stable names.
+
+***functional specs***
+
+- Implement the arbiter-core entry point and the auction domain model.
+  - Define :BillboardSlot:, :AdvertiserAgent:, :Bid:, and :DropOut: as typed data structures.
+  - Each structure has the fields named for it in :plainDefinitions:.
+  - Provide a constructor helper for each that rejects malformed input.
+    - Rejected input: empty ids, negative basePrice, bidIncrement below one, or negative budget.
+  - :AdvertiserAgent: keeps its trueValuation mapping private — reachable only through the scoring path.
+    - It is never copied into a :Bid:, :DropOut:, :AuctionLog:, or :ClearingResult:.
+  - Re-export all four structures and their constructors from `src/core/index.ts`.
+
+  ***acceptance tests***
+  - Constructing a :BillboardSlot: with bidIncrement 0 is rejected with a clear error.
+  - A slot with basePrice 100 and bidIncrement 10 is accepted and exposes those exact values.
+
+- Implement :AuctionLog: as an ordered, append-only record of :Bid: and :DropOut: events.
+  - Provide one operation to append a :Bid: and one to append a :DropOut:; both keep global insertion order.
+  - Provide a query for all :AuctionEvent: items of a given slot, in order.
+  - Provide a query for the current standing bid of a slot.
+    - It is the highest :Bid: amount seen so far on that slot, or the slot basePrice if no bid has landed yet.
+  - Provide a query for the active agents of a slot.
+    - Active agents are agents that have bid on it and have not yet dropped out of it.
+  - Outside callers can read the log but never mutate already-appended events.
+
+  ***acceptance tests***
+  - On a slot with basePrice 100 and bidIncrement 10, append bids of 110, 120, then 130.
+  - Then append a drop-out of the 120-bidder.
+  - The standing bid is 130 and there is exactly one active agent: the 130-bidder.
+
+- Implement :AuctionValidator: which checks an :AuctionLog: and returns either valid or a list of violations.
+  - The first :Bid: on a slot must be at least the slot basePrice.
+  - Every later :Bid: must be at least the previous standing bid plus the slot bidIncrement.
+  - An agent must not place a :Bid: on a slot after it has dropped out of that slot.
+  - A :Bid: amount must never exceed the bidding agent's budget.
+  - A :DropOut: priceAtDropOut must equal the standing bid the agent faced when it left.
+  - Each violation names the offending :AuctionEvent:, the agent, and a plain-language reason.
+
+  ***acceptance tests***
+  - Take an :AuctionLog: on a slot with basePrice 100 that contains a :Bid: of 130 by an agent whose budget is 120.
+  - The validator rejects it, and the violation names that agent, the amount 130, and the budget 120.
+
+- Implement :ClearingEngine: clearing for a single :BillboardSlot: from a validated :AuctionLog:.
+  - Build the slot auditTrail by taking its :AuctionEvent: items in order.
+  - The winner is the one agent still active after every other agent that bid on the slot has dropped out.
+  - A contested slot (two or more agents ever bid) clears at the final standing bid — that is the clearingPrice.
+  - An uncontested slot (exactly one agent ever bid) clears at the slot basePrice, even if that agent bid higher.
+  - A slot nobody bid on has no winner and no clearingPrice.
+  - Produce a :ClearingResult: with the slot, winner, clearingPrice, and auditTrail.
+
+  ***acceptance tests***
+  - Scenario S1 uses a slot with basePrice 100 and bidIncrement 10, with agent A and agent B.
+  - The ordered events are: A bids 110, B bids 120, A bids 130, B drops out at 130, A bids 140.
+  - Scenario S1 clears with winner A and clearingPrice 140.
+  - Scenario S3 uses a slot with basePrice 100 and bidIncrement 10 where only agent A bids, and its single bid is 100.
+  - Scenario S3 clears with winner A and clearingPrice 100.
+
+- Implement :ClearingEngine: clearing across all :BillboardSlot: items.
+  - Apply single-slot clearing to every slot in the provided slot set.
+  - Return a mapping from slot id to its :ClearingResult:.
+  - The auction is complete only when every slot either has a winner or had no interested bidders.
+
+  ***acceptance tests***
+  - Take slot S1 with the scenario-S1 events and slot S3 with the scenario-S3 events.
+  - Clearing returns S1 won by A at 140 and S3 won by A at 100, and reports the auction as complete.
+
+- Implement :FairPrice: and winner overpayment inside :Referee:.
+  - For a contested slot, :FairPrice: is the priceAtDropOut of the last agent to drop out before the winner stood alone.
+  - For an uncontested slot, :FairPrice: equals the clearingPrice, which is the basePrice.
+  - overpayment for the winner of a slot is clearingPrice minus :FairPrice:, and is never less than zero.
+
+  ***acceptance tests***
+  - For scenario S1 the :FairPrice: of the slot is 130 and the winner's overpayment is 10.
+  - For scenario S3 the :FairPrice: of the slot is 100 and the winner's overpayment is 0.
+
+- Implement winner surplus and loser left-on-table inside :Referee:.
+  - surplusCaptured for an agent that wins a slot is its private trueValuation for that slot minus the clearingPrice.
+    - surplusCaptured may be negative.
+  - leftOnTable for an agent that dropped out of a slot is its trueValuation for that slot minus the priceAtDropOut.
+    - It is counted only when the agent still had budget remaining at drop-out and the difference is positive.
+    - Otherwise leftOnTable for that slot is zero.
+  - Both figures are summed per agent across all slots into that agent's :AgentScorecard:.
+
+  ***acceptance tests***
+  - For scenario S1, agent A privately values the slot at 180 and wins it at 140, so A's surplusCaptured for it is 40.
+  - Scenario S2 uses a slot with basePrice 100 and bidIncrement 10, with agent A and agent C.
+  - The ordered events are: A bids 110, C bids 120, A bids 130, C drops out at 130.
+  - Agent C privately values the slot at 190 and still holds budget, so C's leftOnTable is 60.
+
+- Implement :ConcessionError: detection and assemble the full :AgentScorecard: in :Referee:.
+  - Flag an "overbid-while-uncontested" :ConcessionError: when an agent raises a slot while already its only bidder.
+    - The opening bid that first sets a slot's standing bid is never flagged.
+  - Flag a "premature-drop" :ConcessionError: when an agent drops a slot while it still should have stayed.
+    - That means its trueValuation still exceeds the priceAtDropOut and it still has budget remaining.
+  - Each :ConcessionError: records the agent, slot, round, type, and a plain-language reason quoting the exact amounts.
+  - Assemble one :AgentScorecard: per agent holding surplusCaptured, overpayment, leftOnTable, and its concessionErrors.
+  - Every figure on the scorecard must be traceable to the auditTrail events it was computed from.
+
+  ***acceptance tests***
+  - For scenario S1, winning agent A carries one "overbid-while-uncontested" :ConcessionError:.
+    - It names the raise from 130 to 140 while A was alone on the slot, and A's scorecard overpayment is 10.
+  - For scenario S2, losing agent C carries one "premature-drop" :ConcessionError:.
+    - It names the drop at 130 while C valued the slot at 190 with budget left, and C's scorecard leftOnTable is 60.

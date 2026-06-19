@@ -1,0 +1,34 @@
+---
+description: >-
+  Shared TypeScript / Node testing base. Carries the language choice, Vitest
+  unit-test reqs, and Vitest conformance-test reqs. Imported by every module in
+  the project so the test-runner scripts are linked from exactly one place.
+---
+
+***implementation reqs***
+
+- :Implementation: should be written in TypeScript (target ES2022, strict mode on).
+- :Implementation: should run on Node.js 20 or newer.
+- :Implementation: should use npm for dependency management.
+  - Each generated module ships a `package.json` with a `test` script that runs Vitest.
+  - A `package-lock.json` is generated so installs are reproducible.
+- :UnitTests: should be written with the Vitest framework.
+  - :UnitTests: live next to the code they exercise, named `<file>.test.ts`.
+  - :UnitTests: are pure and deterministic — no real network calls, no real timers, no randomness.
+  - Any external dependency (HTTP, the Claude API, the clock) is replaced with a Vitest mock or an injected fake.
+- :UnitTests: are executed via the run script
+  - [run_unittests_node.sh](../test_scripts/run_unittests_node.sh).
+- :UnitTests: must actually run and pass — no skipped or todo tests in the generated suite.
+
+***test reqs***
+
+- :ConformanceTests: should be written with the Vitest framework and run through `npx vitest run`.
+- :ConformanceTests: live outside the generated code, under the conformance tests folder for the module.
+- :ConformanceTests: import the generated implementation from the staged build folder.
+  - They assert its observable behaviour.
+- :ConformanceTests: must be implemented and executed — do not skip, todo, or stub them out.
+- :ConformanceTests: that need an external dependency (HTTP, the Claude API, the clock) replace it with a mock or fake.
+  - The deterministic auction maths in arbiter-core are tested with explicit, fully specified inputs.
+  - Such explicit inputs are test data, not a canned fixture of the live app.
+- :ConformanceTests: are executed via the run script
+  - [run_conformance_tests_node.sh](../test_scripts/run_conformance_tests_node.sh).

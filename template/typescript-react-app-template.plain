@@ -1,0 +1,31 @@
+---
+import:
+  - node-testing-base
+description: >-
+  Shared front-end stack for the Arbiter web app: React 18 + Vite + React Three
+  Fiber, on top of the TypeScript / Vitest base. Import-only module — it carries
+  no functional specs.
+---
+
+***implementation reqs***
+
+- :Implementation: should be a single-page web application built with React 18.
+- :Implementation: should use Vite as the build tool and dev server.
+  - The dev server is started with `npm run dev`.
+  - A production bundle is produced with `npm run build`.
+  - The app entry is `index.html` loading `src/main.tsx`, which mounts the root React component into a `#root` element.
+- :Implementation: should render 3D content with React Three Fiber.
+  - The packages used are `three`, `@react-three/fiber`, and `@react-three/drei`, pinned to compatible versions.
+- :Implementation: should organise code into clear layers under `src/`.
+  - `src/inventory/` holds inventory fetching and normalisation.
+  - `src/agents/` holds the agent runtime and bidding logic.
+  - `src/arena/` holds the orchestrator and round streaming.
+  - `src/scene/` holds the React Three Fiber scene and visual components.
+  - `src/ui/` holds non-3D React UI panels (HUD, scorecards).
+  - `src/core/` holds the deterministic auction logic copied in from arbiter-core; the app never edits it.
+- :Implementation: should keep all deployment compatible with Vercel static hosting for the front-end.
+- :Implementation: should be written so the front-end never recomputes any cleared price, fair price, overpayment,
+  surplus, or left-on-table figure.
+  - These numbers are read verbatim from arbiter-core output and only displayed.
+- :UnitTests: of React components should use Vitest with a jsdom test environment.
+  - Rendering assertions use a React testing library compatible with Vitest.

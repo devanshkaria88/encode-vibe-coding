@@ -1,0 +1,4 @@
+unittests-script: test_scripts/run_unittests_node.sh
+conformance-tests-script: test_scripts/run_conformance_tests_node.sh
+template-dir: template
+build-dest: dist

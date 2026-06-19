@@ -1,0 +1,215 @@
+---
+requires:
+  - arbiter-core
+import:
+  - typescript-react-app-template
+description: >-
+  Arbiter web app: fetches real London billboard inventory, runs a live
+  multi-round auction with Claude-backed advertiser agents, and renders a 3D
+  scene plus an auditable per-agent scorecard. All money figures come from
+  arbiter-core; the app only displays them.
+---
+
+***definitions***
+
+- :OverpassQuery: is the request sent to the OpenStreetMap Overpass API.
+  - It asks for advertising billboards inside the London bounding box.
+
+- :PricingModel: turns a raw billboard's area into a deterministic, documented basePrice and bidIncrement.
+  - It produces the pricing for a :BillboardSlot:.
+  - It is a transparent function of the billboard, not a live market rate.
+
+- :InventorySource: fetches real London billboards through :OverpassQuery:.
+  - It normalises each into a :BillboardSlot: using :PricingModel:, and caches the first fetch.
+
+- :BidDecision: is one agent's choice for one contested slot in one round.
+  - The choice is raise, hold, or drop, plus the raise amount when raising.
+
+- :AgentRuntime: wraps one :AdvertiserAgent: as a live bidder.
+  - Given the public auction state it returns a :BidDecision: per contested slot it wants.
+  - It never returns an action that exceeds the agent's remaining budget.
+
+- :RoundEvent: is a streamed snapshot of one round.
+  - It carries the round number, the standing bid per contested slot, the drop-outs so far, and remaining budgets.
+
+- :ArenaOrchestrator: runs the auction.
+  - It drives synchronized rounds and collects a :BidDecision: from each :AgentRuntime:.
+  - It appends the resulting valid :Bid: and :DropOut: events to an :AuctionLog: and advances until every slot clears.
+  - When the auction ends it calls :ClearingEngine: then :Referee: to produce the final results.
+
+- :RoundStream: is the channel that pushes each :RoundEvent: to the browser as the auction runs.
+
+- :LondonMapScene: is the React Three Fiber scene.
+  - It is a London map plane with one node per :BillboardSlot:, placed by latitude and longitude.
+
+- :BidEdge: is a short-lived visual edge drawn from a bidding agent to the slot it bid on when a :Bid: happens.
+
+- :ClearingPulse: is the visual settling that plays when a :ClearingResult: arrives.
+  - It locks each slot node to its winner's colour and final price.
+
+- :ScorecardPanel: is the per-agent panel that displays an :AgentScorecard: exactly as arbiter-core produced it.
+
+- :AuctionHUD: is the round ticker overlay.
+  - It shows the current round, the standing bid per contested slot, and remaining budgets.
+
+***implementation reqs***
+
+- :InventorySource: fetches from the public OpenStreetMap Overpass API, which needs no API key.
+  - The Overpass endpoint defaults to the runtime value `https://overpass-api.de/api/interpreter`, overridable by env.
+  - The London bounding box is south 51.28, west -0.51, north 51.70, east 0.33.
+  - The first fetch is live; its normalised result is written to the cache file `public/cache/london_inventory.json`.
+  - Later runs read that cache file instead of calling Overpass again.
+- :PricingModel: computes basePrice as a documented function of the billboard's estimated face area in square metres.
+  - basePrice = 50 pounds plus 25 pounds per square metre of face area, rounded to the nearest whole pound.
+  - When area is unknown, a default face area of 12 square metres is assumed.
+  - bidIncrement = 10 percent of basePrice, rounded to the nearest whole pound, with a floor of 5 pounds.
+  - This formula is presented to the user as a transparent estimate, never as a live market rate.
+- :AgentRuntime: makes its bidding decisions with the Claude API, one call per agent per decision.
+  - The default model is `claude-sonnet-4-6`, overridable by env; the API key is read from env `ANTHROPIC_API_KEY`.
+  - Each agent's prompt is private: it contains only that agent's own budget, its own per-slot valuation, and its goal.
+  - One agent's valuation is never placed in another agent's prompt.
+- :ArenaOrchestrator: depends on the :AgentRuntime: decision contract, not on the Claude API directly.
+  - This lets tests inject a deterministic :AgentRuntime: while production wires the Claude-backed one.
+- The deterministic auction maths is delegated entirely to arbiter-core, imported from `src/core/`.
+  - The app never recomputes a cleared price, fair price, overpayment, surplus, or left-on-table value.
+- :RoundStream: pushes :RoundEvent: updates over a WebSocket; a Server-Sent-Events channel is an acceptable fallback.
+- The default auction runs with 4 advertiser agents over the London inventory.
+- The 3D scene caps device pixel ratio at 2 and always fills the browser viewport.
+
+***functional specs***
+
+- Implement the Arbiter app entry point.
+  - `index.html` loads `src/main.tsx`, which mounts the root React component into the `#root` element.
+  - The root component shows an empty London stage and a control to start an auction.
+  - Running `npm run dev` serves the app on Vite's dev server.
+
+- Implement :PricingModel: as a stateless component that derives slot pricing from a billboard.
+  - It exposes one operation that takes a billboard's face area in square metres.
+  - It returns basePrice and bidIncrement.
+  - It applies the documented formula in :plainImplementationReqs:, assuming the default area when area is missing.
+
+  ***acceptance tests***
+  - A billboard with a face area of 12 square metres yields basePrice 350 and bidIncrement 35.
+
+- Implement :InventorySource: fetching and normalisation from :OverpassQuery:.
+  - It queries the Overpass endpoint for advertising billboards within the London bounding box.
+  - It normalises each returned element into a :BillboardSlot:.
+    - Each :BillboardSlot: gets a stable id, a name, a latitude, a longitude, and pricing from :PricingModel:.
+  - It returns the list of normalised :BillboardSlot: items.
+
+  ***acceptance tests***
+  - A fetch returns at least one normalised :BillboardSlot:.
+  - Every returned slot has a latitude within 51.28 to 51.70 and a longitude within -0.51 to 0.33.
+
+- Implement :InventorySource: caching so only the first fetch is live.
+  - On the first call, after a successful live fetch, the normalised slots are written to the cache file.
+  - On any later call, the slots are read from that cache file and no Overpass request is made.
+  - The cached set is identical to the set returned by the first fetch.
+
+  ***acceptance tests***
+  - Calling :InventorySource: a second time returns the same set of :BillboardSlot: items as the first call.
+  - The second call issues no network request.
+
+- Implement the :AgentRuntime: decision contract and its budget enforcement.
+  - :AgentRuntime: exposes one operation: given the public auction state, return a :BidDecision: per wanted slot.
+  - A raise :BidDecision: whose amount would exceed the agent's remaining budget is rejected and downgraded to a drop.
+    - So the runtime never emits an over-budget action.
+  - The contract is satisfiable by a deterministic implementation for testing, independent of any Claude call.
+
+  ***acceptance tests***
+  - Take an :AgentRuntime: for an agent with remaining budget 120, asked to act where a valid raise would be 130.
+  - It never returns a raise; it returns a drop or hold, and the rejected over-budget raise is recorded as the reason.
+
+- Implement the Claude-backed :AgentRuntime: that produces live :BidDecision: values.
+  - For each decision it makes one Claude API call with the agent's private prompt.
+    - The private prompt holds the agent's budget, its per-slot valuation, and its goal.
+  - It parses the model reply into a :BidDecision: per slot, then applies the budget guard from the prior spec.
+  - A malformed or missing reply is treated as a hold for that slot.
+
+- Implement the :ArenaOrchestrator: round loop that runs a full headless auction to completion.
+  - Each round it asks every :AgentRuntime: with budget for a :BidDecision: on each contested slot.
+  - It then appends the valid :Bid: and :DropOut: events to the :AuctionLog: in a fixed agent order.
+  - A slot stops being contested once one active bidder remains; the loop advances rounds until every slot has cleared.
+  - The loop is guaranteed to terminate: an agent that neither raises nor can afford to raise drops out.
+
+  ***acceptance tests***
+  - A headless run over a set of slots with deterministic agents terminates with every slot cleared.
+  - The resulting :AuctionLog: passes :AuctionValidator: with no violations.
+
+- Implement :ArenaOrchestrator: final scoring once the auction ends.
+  - It calls :ClearingEngine: on the completed :AuctionLog: to get a :ClearingResult: per slot.
+  - It then calls :Referee: with the results, the log, and the agents to get one :AgentScorecard: per agent.
+  - It returns a final bundle of the slots, the :AuctionLog:, the clearing results, and the scorecards.
+
+  ***acceptance tests***
+  - After a headless run, the final bundle has one :ClearingResult: per slot and one :AgentScorecard: per agent.
+  - The scorecards' figures equal the arbiter-core output for that same log.
+
+- Implement :RoundEvent: streaming through :RoundStream:.
+  - As the orchestrator finishes each round it emits a :RoundEvent:.
+    - The :RoundEvent: holds the round number, the standing bid per contested slot, the drop-outs so far, and budgets.
+  - :RoundStream: pushes each :RoundEvent: to connected clients over a WebSocket, with a Server-Sent-Events fallback.
+  - The browser receives the rounds in order.
+
+  ***acceptance tests***
+  - Running a three-round auction emits exactly three :RoundEvent: messages in round order.
+  - Each message carries the standing bid for every still-contested slot.
+
+- Implement :LondonMapScene: as a full-viewport React Three Fiber canvas.
+  - The scene mounts a Canvas that fills the viewport, with a London map plane and ambient plus directional lighting.
+  - The canvas caps device pixel ratio at 2 and resizes to stay full-viewport when the window changes size.
+
+  ***acceptance tests***
+  - The Canvas mounts with at least one ambient and one directional light present and fills the viewport.
+  - After a window resize it keeps a device pixel ratio no greater than 2.
+
+- Implement :BillboardSlot: nodes inside :LondonMapScene:.
+  - Each :BillboardSlot: becomes one node positioned on the map plane by its latitude and longitude.
+  - Each node glows with an intensity proportional to its current value on the map.
+  - The number of nodes always equals the number of slots in the auction.
+
+  ***acceptance tests***
+  - For an auction of 6 slots, :LondonMapScene: renders exactly 6 slot nodes.
+  - Each node is placed at the projected position of its slot's latitude and longitude.
+
+- Implement :BidEdge: animations driven by bids.
+  - When a :Bid: occurs in a :RoundEvent:, a transient :BidEdge: is drawn from the bidding agent's marker to the slot.
+  - Each :BidEdge: fades out shortly after it appears so the scene reflects only recent bidding activity.
+
+  ***acceptance tests***
+  - A round in which two distinct bids occur draws two :BidEdge: edges.
+  - Each edge connects the correct agent marker to the correct slot node, and both fade out after the round.
+
+- Implement :AuctionHUD: as the round ticker overlay.
+  - It shows the current round number, the standing bid for each contested slot, and every agent's remaining budget.
+  - It updates on each incoming :RoundEvent:.
+
+  ***acceptance tests***
+  - When a :RoundEvent: for round 3 arrives with two contested slots, the :AuctionHUD: shows round 3.
+  - It also shows both slots' standing bids and all agents' remaining budgets.
+
+- Implement :ClearingPulse: triggered by clearing results.
+  - When the :ClearingResult: for a slot arrives, its node plays a settling pulse and locks to the winner's colour.
+  - The node then shows the slot's final clearingPrice taken verbatim from the :ClearingResult:.
+  - The displayed winner and price are never recomputed in the app.
+
+  ***acceptance tests***
+  - For scenario S1 cleared by arbiter-core, the slot node locks to agent A's colour and displays the price 140.
+  - The displayed values match the :ClearingResult: exactly, with no recomputation in the app.
+
+- Implement :ScorecardPanel: displaying each :AgentScorecard:.
+  - For every agent it shows surplusCaptured, overpayment, leftOnTable, and the concessionErrors with their reasons.
+  - Every money figure is taken verbatim from the :AgentScorecard:; the app performs no arithmetic on these numbers.
+
+  ***acceptance tests***
+  - For scenario S1, agent A's :ScorecardPanel: shows the exact core figures: overpayment 10, surplusCaptured 40.
+  - The panel lists the overbid-while-uncontested concession error.
+
+- Implement click-to-explain in :ScorecardPanel:.
+  - Clicking any money figure on a scorecard reveals the exact :AuctionEvent: items it was computed from.
+    - Those events come from the :ClearingResult: auditTrail and the :AuctionLog:.
+  - The explanation lists those events only; it never derives a new number.
+
+  ***acceptance tests***
+  - For scenario S1, clicking agent A's overpayment of 10 reveals the audit-trail events behind it.
+  - Those events show the drop-out at 130 and the raise to 140 that the overpayment was derived from.
