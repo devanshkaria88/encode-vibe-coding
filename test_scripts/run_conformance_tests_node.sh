@@ -63,17 +63,32 @@ else
 fi
 
 echo "===== [8/8] Run conformance tests (Vitest) ====="
-TESTS_PATH="$current_dir/$CONFORMANCE_TESTS_FOLDER"
-echo "+ npx vitest run --root \"$(pwd)\" \"$TESTS_PATH\""
-output=$(npx vitest run --root "$(pwd)" "$TESTS_PATH" 2>&1)
+# The conformance folder ships its own vitest.config.ts that imports `vitest/config`,
+# aliases the package to `process.cwd()/src/...`, and includes its test via __dirname.
+# That config can only resolve `vitest/config` and the alias when it sits next to a
+# node_modules and is run with cwd = the staged build. So co-locate the (read-only)
+# tests INTO the staged build, then run Vitest from here with that config.
+SRC_TESTS="$current_dir/$CONFORMANCE_TESTS_FOLDER"
+LOCAL_TESTS=".conformance_run"
+rm -rf "$LOCAL_TESTS"
+mkdir -p "$LOCAL_TESTS"
+cp -R "$SRC_TESTS"/* "$LOCAL_TESTS"/ 2>/dev/null
+CONF_CONFIG="$(pwd)/$LOCAL_TESTS/vitest.config.ts"
+if [ -f "$CONF_CONFIG" ]; then
+  echo "+ npx vitest run --config \"$CONF_CONFIG\"   (cwd=$(pwd))"
+  output=$(npx vitest run --config "$CONF_CONFIG" 2>&1)
+else
+  echo "+ npx vitest run --root \"$(pwd)\" \"$(pwd)/$LOCAL_TESTS\""
+  output=$(npx vitest run --root "$(pwd)" "$(pwd)/$LOCAL_TESTS" 2>&1)
+fi
 exit_code=$?
 echo "$output"
 
 # Guard against a green run that discovered no tests.
 if echo "$output" | grep -qiE "no test files found|no tests found"; then
-  echo "Error: no conformance tests were discovered under $TESTS_PATH."
+  echo "Error: no conformance tests were discovered under $SRC_TESTS."
   exit $NO_TESTS_EXIT_CODE
 fi
 
-echo "Conformance-test command exited with code $exit_code (tests: $TESTS_PATH)"
+echo "Conformance-test command exited with code $exit_code (tests: $SRC_TESTS)"
 exit $exit_code
