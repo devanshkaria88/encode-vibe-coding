@@ -127,13 +127,27 @@ description: >-
   - A malformed or missing reply is treated as a hold for that slot.
 
 - Implement the :ArenaOrchestrator: round loop that runs a full headless auction to completion.
-  - Each round it asks every :AgentRuntime: with budget for a :BidDecision: on each contested slot.
-  - It then appends the valid :Bid: and :DropOut: events to the :AuctionLog: in a fixed agent order.
-  - A slot stops being contested once one active bidder remains; the loop advances rounds until every slot has cleared.
-  - The loop is guaranteed to terminate: an agent that neither raises nor can afford to raise drops out.
+  - Every agent is a contender for a slot until it drops out of that slot.
+    - A contender that has not yet bid still counts as a contender.
+    - A slot is contested while two or more contenders remain on it.
+    - A slot clears when exactly one contender remains; that contender is the winner.
+    - The slot is NOT settled merely because only one agent has bid so far — others may still enter.
+  - Within a round the orchestrator processes agents one at a time in a fixed order.
+    - It asks each agent for its :BidDecision: from the live state.
+    - The live state already reflects every :Bid: and :DropOut: made earlier in the same round.
+  - On a slot with no standing bid yet, a contender enters by bidding at least the slot basePrice.
+  - On a slot that already has a standing bid, a non-leading contender does one of:
+    - raise to at least the standing bid plus the slot bidIncrement, becoming the new leader; or
+    - drop out, recording priceAtDropOut as the standing bid it declined to beat.
+  - The current leader of a slot takes no action that round and stays a contender.
+  - The loop advances rounds until every slot has cleared, then stops.
+  - Termination is guaranteed: each round every non-leading contender either raises the price or drops out.
+    - An agent that cannot afford the next raise drops out, so contenders only ever decrease.
 
   ***acceptance tests***
-  - A headless run over a set of slots with deterministic agents terminates with every slot cleared.
+  - A headless single-slot run with two deterministic agents, where one keeps raising and the other drops once the price
+    passes its limit, terminates with the slot cleared and exactly one winner.
+  - In that run the losing agent appears in the :AuctionLog: with a drop-out, proving the slot was genuinely contested.
   - The resulting :AuctionLog: passes :AuctionValidator: with no violations.
 
 - Implement :ArenaOrchestrator: final scoring once the auction ends.
@@ -143,7 +157,8 @@ description: >-
 
   ***acceptance tests***
   - After a headless run, the final bundle has one :ClearingResult: per slot and one :AgentScorecard: per agent.
-  - The scorecards' figures equal the arbiter-core output for that same log.
+  - For every agent, the bundle's :AgentScorecard: equals :Referee: run directly on the bundle's own :AuctionLog: and
+    clearing results — proving the orchestrator only relays core output and never recomputes it.
 
 - Implement :RoundEvent: streaming through :RoundStream:.
   - As the orchestrator finishes each round it emits a :RoundEvent:.
