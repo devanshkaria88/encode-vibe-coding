@@ -228,3 +228,49 @@ description: >-
   ***acceptance tests***
   - For scenario S1, clicking agent A's overpayment of 10 reveals the audit-trail events behind it.
   - Those events show the drop-out at 130 and the raise to 140 that the overpayment was derived from.
+
+- Extend :ArenaOrchestrator: so a caller can watch the auction round by round.
+  - The run accepts an optional round listener.
+  - After each completed round, the orchestrator emits a :RoundEvent: to the listener.
+    - The :RoundEvent: carries the round number, the standing bid per contested slot, the drop-outs so far, and budgets.
+  - The orchestrator still returns the same final bundle when the auction ends.
+  - Running without a listener behaves exactly as before — the listener is optional and changes no auction outcome.
+
+  ***acceptance tests***
+  - A headless three-round deterministic auction run with a listener calls the listener three times, in round order.
+  - Each emitted :RoundEvent: carries the standing bid for every still-contested slot.
+  - The final bundle returned by the run is identical whether or not a listener was supplied.
+
+- Harden the Claude-backed :AgentRuntime: for in-browser use, with a deterministic fallback.
+  - It reads its API key from the environment variable `VITE_ANTHROPIC_API_KEY`.
+  - It calls the Anthropic messages endpoint with model `claude-sonnet-4-6`.
+    - The request sends the header `anthropic-dangerous-direct-browser-access` set to `true`.
+    - That header lets the call run from a browser.
+  - It falls back to a deterministic, valuation-driven decision in any of these cases:
+    - no API key is set, the API call fails, or the reply cannot be parsed into valid :BidDecision: values.
+  - The deterministic fallback decides per contested slot:
+    - if the agent is the current leader, hold;
+    - else if a one-increment raise stays within the agent's valuation and budget, raise by one increment;
+    - else drop out.
+  - With no API key set, a full auction must complete entirely on the deterministic fallback, making no network call.
+
+  ***acceptance tests***
+  - With no `VITE_ANTHROPIC_API_KEY` present, a Claude-backed :AgentRuntime: returns only valid, non-over-budget
+    :BidDecision: values from the deterministic fallback, and makes no network request.
+  - A full headless auction of four such fallback agents over one slot terminates with the slot cleared and a valid
+    :AuctionLog:.
+
+- Wire the live auction into the app entry point so clicking start runs and shows a full auction.
+  - When the user clicks the start control, the app loads inventory through :InventorySource: and shows the resulting
+    :BillboardSlot: items as nodes on :LondonMapScene:.
+  - It creates 4 :AdvertiserAgent: items, each with a budget and a private per-slot valuation.
+    - Each agent is wrapped as a Claude-backed :AgentRuntime: with the deterministic fallback.
+  - It runs :ArenaOrchestrator: with a round listener.
+    - Each :RoundEvent: updates :AuctionHUD: and triggers :BidEdge: animations on :LondonMapScene:.
+  - When the auction ends, it plays :ClearingPulse: on each slot and shows one :ScorecardPanel: per agent.
+  - While an auction is running, the start control shows a running state and cannot launch a second auction.
+
+  ***acceptance tests***
+  - Starting the app with inventory and agents supplied by deterministic fallbacks loads the slots onto :LondonMapScene:
+    and, when the run finishes, renders exactly one :ScorecardPanel: per agent populated from the final bundle.
+  - The money figures shown on each :ScorecardPanel: equal the bundle's :AgentScorecard: values, with no recomputation.

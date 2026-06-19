@@ -105,3 +105,23 @@ Root cause was a concept-graph cycle; bisected with `--dry-run`. Three fixes app
 3. **Predefined tokens in prose:** removed `:plainDefinitions:` / `:plainImplementationReqs:` references from
    functional-spec text — those predefined tokens aren't resolvable as concept references in a module.
 Both modules now pass `codeplain <module>.plain --dry-run` (core 8/8, app 16/16, no cycles, no complexity flags).
+
+## Post-render findings (ran the built app) + wiring fixes
+Ran `npm install` + `vitest` + build in dist/. Results: 78/78 tests pass; `vite build` produces a deployable bundle.
+Found three gaps and fixed them at the spec level (appended specs → cheap `--render-from`):
+1. **App was a scaffold.** App.tsx's Start button only console.logged; nothing fetched inventory, ran the orchestrator,
+   or populated the scene/scorecards. Added functional spec "wire the live auction into the app entry point".
+2. **Claude path unusable in-browser.** Generated claude.ts used a stale model id, no env key, and would hit CORS.
+   Added functional spec hardening the Claude-backed :AgentRuntime:: key from `VITE_ANTHROPIC_API_KEY`, model
+   `claude-sonnet-4-6`, header `anthropic-dangerous-direct-browser-access: true`, and a deterministic valuation-driven
+   fallback that runs a full auction with NO key / no network. User chose live-Claude-with-fallback.
+3. **`npm run build` (tsc) failed** — generated tsconfig missing `jsx`. Added a template impl req (jsx react-jsx + DOM lib).
+   Note: `vite build` already works and is Vercel's default, so deploy is unblocked regardless; the tsconfig req only
+   takes full effect on a full re-render (tsconfig is emitted at func 1), so for `npm run build` now either re-render
+   fully or add `"jsx": "react-jsx"` to tsconfig.json.
+Also added functional spec extending :ArenaOrchestrator: to emit a :RoundEvent: per round (optional listener) so the
+scene/HUD animate live. App functional specs now number 19 (was 16). Re-render: `codeplain arbiter-app.plain --render-from 17`.
+
+## API keys
+- Build, tests, and the deterministic-fallback demo need NO key.
+- Live Claude agents need `VITE_ANTHROPIC_API_KEY` in `.env.local` (Vite exposes `VITE_`-prefixed vars to the browser).

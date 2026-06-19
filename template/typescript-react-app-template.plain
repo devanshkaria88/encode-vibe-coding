@@ -23,6 +23,10 @@ description: >-
   - `src/scene/` holds the React Three Fiber scene and visual components.
   - `src/ui/` holds non-3D React UI panels (HUD, scorecards).
   - `src/core/` holds the deterministic auction logic copied in from arbiter-core; the app never edits it.
+- :Implementation: should ship a TypeScript config that compiles React JSX.
+  - The tsconfig sets jsx to the automatic React runtime (the `react-jsx` setting).
+  - The tsconfig lib includes DOM and DOM.Iterable alongside ES2022.
+  - The production build type-checks and bundles, and the type-check must pass on every `.tsx` file.
 - :Implementation: should keep all deployment compatible with Vercel static hosting for the front-end.
 - :Implementation: should be written so the front-end never recomputes any cleared price, fair price, overpayment,
   surplus, or left-on-table figure.
