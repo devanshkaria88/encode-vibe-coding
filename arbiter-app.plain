@@ -69,7 +69,7 @@ description: >-
   - bidIncrement = 10 percent of basePrice, rounded to the nearest whole pound, with a floor of 5 pounds.
   - This formula is presented to the user as a transparent estimate, never as a live market rate.
 - :AgentRuntime: makes its bidding decisions with the Claude API, one call per agent per decision.
-  - The default model is `claude-sonnet-4-6`, overridable by env; the API key is read from env `ANTHROPIC_API_KEY`.
+  - The default model is `claude-sonnet-4-6`, overridable by env; the API key is read from env `VITE_ANTHROPIC_API_KEY`.
   - Each agent's prompt is private: it contains only that agent's own budget, its own per-slot valuation, and its goal.
   - One agent's valuation is never placed in another agent's prompt.
 - :ArenaOrchestrator: depends on the :AgentRuntime: decision contract, not on the Claude API directly.
@@ -91,6 +91,9 @@ description: >-
     rounded corners, and a soft drop shadow.
   - Panel text is high-contrast and legible over the map — light text with enough weight and spacing to read easily.
   - Floating panels never cover the whole map; the map stays the main, visible surface behind them.
+- App :UnitTests: that start an auction assert the settled end state, not the transient "in progress" label.
+  - A deterministic auction completes inside the start handler, so the in-progress label is not reliably observable.
+  - After starting, assert that one :ScorecardPanel: per agent is shown and the start control is no longer offered.
 
 ***test reqs***
 - :ConformanceTests: for the map scene mock `mapbox-gl` and deck.gl.
@@ -100,6 +103,10 @@ description: >-
   - For the Claude path: stub `VITE_ANTHROPIC_API_KEY` and mock `fetch` to resolve a JSON body with a `content` array.
   - For the deterministic path: leave the key unset and assert `fetch` is never called.
   - The deterministic path is tested with plain calls — no env or network mocking is needed for its decision logic.
+  - A test that drives a full auction to verify the Claude path awaits the async run before asserting `fetch` ran.
+    - The Claude-backed :AgentRuntime: issues its `fetch` calls asynchronously while the auction runs.
+- :ConformanceTests: for the scorecard click-to-explain view use a :ClearingResult: whose audit trail is non-empty.
+  - With audit events present, the explanation lists them rather than showing the empty 'no events recorded' state.
 
 ***functional specs***
 
