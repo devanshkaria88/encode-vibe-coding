@@ -81,6 +81,10 @@ description: >-
   - The app never recomputes a cleared price, fair price, overpayment, surplus, or left-on-table value.
 - :RoundStream: pushes :RoundEvent: updates over a WebSocket; a Server-Sent-Events channel is an acceptable fallback.
 - The default auction runs with 4 advertiser agents over the London inventory.
+- Each :AdvertiserAgent: gets a fixed display colour by its index in the agent list, from a shared four-colour palette.
+  - The palette, in order, is blue #3B82F6, red #EF4444, green #22C55E, and amber #EAB308.
+  - The exact same palette constant is used by both the implementation and its tests, so asserted colours always match.
+  - The same colour is used for that agent's :AgentAnchor:, :BidEdge:, :ClearingPulse:, and :ScorecardPanel:.
 - The map scene always fills the browser viewport and resizes with the window.
 - The 3D London map is the full-screen background; all panels float over it as glassmorphism cards.
   - Glassmorphism means a translucent dark fill with a backdrop blur (frosted glass), a subtle light 1px border,
