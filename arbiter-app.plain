@@ -197,7 +197,9 @@ description: >-
   - The browser receives the rounds in order.
 
   ***acceptance tests***
-  - Running a three-round auction emits exactly three :RoundEvent: messages in round order.
+  - A three-round contested auction emits exactly three :RoundEvent: messages, one per round, in round order.
+    - Construct the run with two competing agents that raise against each other for three rounds before one drops.
+    - A single-agent slot clears in its first round and cannot stand in for a three-round auction.
   - Each message carries the standing bid for every still-contested slot.
 
 - Implement :LondonMapScene: as a full-viewport Mapbox 3D map of London.
