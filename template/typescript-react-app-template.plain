@@ -14,13 +14,18 @@ description: >-
   - The dev server is started with `npm run dev`.
   - A production bundle is produced with `npm run build`.
   - The app entry is `index.html` loading `src/main.tsx`, which mounts the root React component into a `#root` element.
-- :Implementation: should render 3D content with React Three Fiber.
-  - The packages used are `three`, `@react-three/fiber`, and `@react-three/drei`, pinned to compatible versions.
+- :Implementation: should render the 3D map with Mapbox GL (react-map-gl) and overlay visuals with deck.gl.
+  - The map packages are `mapbox-gl` and `react-map-gl`.
+  - The overlay packages are deck.gl: `@deck.gl/react`, `@deck.gl/layers`, `@deck.gl/mapbox`.
+  - The Mapbox access token is read from the environment variable `VITE_MAPBOX_TOKEN`.
+  - The base map uses the Mapbox Standard style with a pitched camera so London buildings render in 3D.
+- :UnitTests: for the map scene mock `mapbox-gl` and deck.gl; they never instantiate a real WebGL map or GPU context.
+  - They assert on the configuration and overlay layer data, not on real rendering.
 - :Implementation: should organise code into clear layers under `src/`.
   - `src/inventory/` holds inventory fetching and normalisation.
   - `src/agents/` holds the agent runtime and bidding logic.
   - `src/arena/` holds the orchestrator and round streaming.
-  - `src/scene/` holds the React Three Fiber scene and visual components.
+  - `src/scene/` holds the Mapbox map scene and the deck.gl overlay components.
   - `src/ui/` holds non-3D React UI panels (HUD, scorecards).
   - `src/core/` holds the deterministic auction logic copied in from arbiter-core; the app never edits it.
 - :Implementation: should ship a TypeScript config that compiles React JSX.

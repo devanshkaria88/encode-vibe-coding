@@ -39,13 +39,17 @@ description: >-
 
 - :RoundStream: is the channel that pushes each :RoundEvent: to the browser as the auction runs.
 
-- :LondonMapScene: is the React Three Fiber scene.
-  - It is a London map plane with one node per :BillboardSlot:, placed by latitude and longitude.
+- :LondonMapScene: is a full-viewport Mapbox 3D map of London with a deck.gl overlay for the auction.
+  - The map is centred on London and pitched so the buildings read as 3D.
+  - The deck.gl overlay draws one 3D column per :BillboardSlot: plus the live :BidEdge: arcs.
 
-- :BidEdge: is a short-lived visual edge drawn from a bidding agent to the slot it bid on when a :Bid: happens.
+- :AgentAnchor: is a fixed position on the map assigned to one :AdvertiserAgent:.
+  - It is the fixed origin point for that agent's bid arcs.
+
+- :BidEdge: is a short-lived deck.gl arc drawn from a bidding agent's :AgentAnchor: to the slot it bid on.
 
 - :ClearingPulse: is the visual settling that plays when a :ClearingResult: arrives.
-  - It locks each slot node to its winner's colour and final price.
+  - It locks each slot's column to its winner's colour and final price.
 
 - :ScorecardPanel: is the per-agent panel that displays an :AgentScorecard: exactly as arbiter-core produced it.
 
@@ -74,7 +78,12 @@ description: >-
   - The app never recomputes a cleared price, fair price, overpayment, surplus, or left-on-table value.
 - :RoundStream: pushes :RoundEvent: updates over a WebSocket; a Server-Sent-Events channel is an acceptable fallback.
 - The default auction runs with 4 advertiser agents over the London inventory.
-- The 3D scene caps device pixel ratio at 2 and always fills the browser viewport.
+- The map scene always fills the browser viewport and resizes with the window.
+
+***test reqs***
+- :ConformanceTests: for the map scene mock `mapbox-gl` and deck.gl.
+  - They never instantiate a real Mapbox map or GPU context, and run under jsdom.
+  - They assert on the scene configuration and the overlay layer data, not on real WebGL rendering.
 
 ***functional specs***
 
@@ -170,30 +179,35 @@ description: >-
   - Running a three-round auction emits exactly three :RoundEvent: messages in round order.
   - Each message carries the standing bid for every still-contested slot.
 
-- Implement :LondonMapScene: as a full-viewport React Three Fiber canvas.
-  - The scene mounts a Canvas that fills the viewport, with a London map plane and ambient plus directional lighting.
-  - The canvas caps device pixel ratio at 2 and resizes to stay full-viewport when the window changes size.
+- Implement :LondonMapScene: as a full-viewport Mapbox 3D map of London.
+  - It mounts a Mapbox map that fills the viewport, using the Mapbox Standard style.
+    - The Mapbox access token comes from `VITE_MAPBOX_TOKEN`.
+  - The camera is centred on London with a non-zero pitch so buildings render in 3D.
+  - A deck.gl overlay is layered on top of the map for the auction visuals.
+  - The map resizes to stay full-viewport when the window changes size.
 
   ***acceptance tests***
-  - The Canvas mounts with at least one ambient and one directional light present and fills the viewport.
-  - After a window resize it keeps a device pixel ratio no greater than 2.
+  - :LondonMapScene: is configured with a London centre, a non-zero pitch, and the Standard style.
+    - A deck.gl overlay is mounted over the map.
+  - When the window resizes, the map stays full-viewport.
 
-- Implement :BillboardSlot: nodes inside :LondonMapScene:.
-  - Each :BillboardSlot: becomes one node positioned on the map plane by its latitude and longitude.
-  - Each node glows with an intensity proportional to its current value on the map.
-  - The number of nodes always equals the number of slots in the auction.
-
-  ***acceptance tests***
-  - For an auction of 6 slots, :LondonMapScene: renders exactly 6 slot nodes.
-  - Each node is placed at the projected position of its slot's latitude and longitude.
-
-- Implement :BidEdge: animations driven by bids.
-  - When a :Bid: occurs in a :RoundEvent:, a transient :BidEdge: is drawn from the bidding agent's marker to the slot.
-  - Each :BidEdge: fades out shortly after it appears so the scene reflects only recent bidding activity.
+- Implement :BillboardSlot: columns on the :LondonMapScene: overlay.
+  - The deck.gl overlay draws one 3D column per :BillboardSlot:, positioned at the slot's longitude and latitude.
+  - Each column's height and colour scale with the slot's current value.
+  - The number of columns always equals the number of slots in the auction.
 
   ***acceptance tests***
-  - A round in which two distinct bids occur draws two :BidEdge: edges.
-  - Each edge connects the correct agent marker to the correct slot node, and both fade out after the round.
+  - For an auction of 6 slots, the column layer has exactly 6 data entries, each at its slot's longitude and latitude.
+  - A slot with a higher current value produces a taller column than a slot with a lower value.
+
+- Implement :BidEdge: arcs driven by bids.
+  - Each :AdvertiserAgent: is assigned a fixed :AgentAnchor: position on the map.
+  - When a :Bid: occurs in a :RoundEvent:, the overlay draws a deck.gl arc from the agent's :AgentAnchor: to the slot.
+  - Each :BidEdge: arc fades out shortly after it appears, so only recent bids are shown.
+
+  ***acceptance tests***
+  - A round with two distinct bids yields an arc layer holding two arcs.
+  - Each arc starts at the bidding agent's :AgentAnchor: and ends at the bid slot's longitude and latitude.
 
 - Implement :AuctionHUD: as the round ticker overlay.
   - It shows the current round number, the standing bid for each contested slot, and every agent's remaining budget.
@@ -204,12 +218,12 @@ description: >-
   - It also shows both slots' standing bids and all agents' remaining budgets.
 
 - Implement :ClearingPulse: triggered by clearing results.
-  - When the :ClearingResult: for a slot arrives, its node plays a settling pulse and locks to the winner's colour.
-  - The node then shows the slot's final clearingPrice taken verbatim from the :ClearingResult:.
+  - When the :ClearingResult: for a slot arrives, its column plays a settling pulse and locks to the winner's colour.
+  - The column then shows the slot's final clearingPrice taken verbatim from the :ClearingResult:.
   - The displayed winner and price are never recomputed in the app.
 
   ***acceptance tests***
-  - For scenario S1 cleared by arbiter-core, the slot node locks to agent A's colour and displays the price 140.
+  - For scenario S1 cleared by arbiter-core, the slot's column locks to agent A's colour and displays the price 140.
   - The displayed values match the :ClearingResult: exactly, with no recomputation in the app.
 
 - Implement :ScorecardPanel: displaying each :AgentScorecard:.
@@ -262,7 +276,7 @@ description: >-
 
 - Wire the live auction into the app entry point so clicking start runs and shows a full auction.
   - When the user clicks the start control, the app loads inventory through :InventorySource: and shows the resulting
-    :BillboardSlot: items as nodes on :LondonMapScene:.
+    :BillboardSlot: items as columns on :LondonMapScene:.
   - It creates 4 :AdvertiserAgent: items, each with a budget and a private per-slot valuation.
     - Each agent is wrapped as a Claude-backed :AgentRuntime: with the deterministic fallback.
   - It runs :ArenaOrchestrator: with a round listener.

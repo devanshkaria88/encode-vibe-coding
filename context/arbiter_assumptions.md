@@ -125,3 +125,18 @@ scene/HUD animate live. App functional specs now number 19 (was 16). Re-render: 
 ## API keys
 - Build, tests, and the deterministic-fallback demo need NO key.
 - Live Claude agents need `VITE_ANTHROPIC_API_KEY` in `.env.local` (Vite exposes `VITE_`-prefixed vars to the browser).
+
+## 3D map: switched from R3F to Mapbox + deck.gl (user request)
+The R3F LondonStage was a bare plane, not a real map. User asked for a real 3D London map via Mapbox.
+Rewrote the scene specs (func 10-14, except the HUD) to: Mapbox Standard 3D buildings (pitched, react-map-gl) +
+a deck.gl overlay — 3D value COLUMNS per slot (height/colour by value, lock to winner on clearing) and ARC
+:BidEdge:s from each agent's fixed :AgentAnchor: to the slot it bids on. Template 3D stack swapped R3F →
+`mapbox-gl` + `react-map-gl` + deck.gl (`@deck.gl/react|layers|mapbox`). Added a test req: scene conformance/unit
+tests MOCK mapbox-gl + deck.gl (they can't run in jsdom) and assert on layer data, not WebGL.
+New concept :AgentAnchor: (fixed map origin for an agent's bid arcs). Re-render scope: `--render-from 10`
+(covers the scene rewrite + wiring 17-19 + the 6/18 conflict fix). Dry-run clean, 19/19.
+
+## API keys (updated)
+- Mapbox: a FREE public token `pk...` in `dist/.env.local` as `VITE_MAPBOX_TOKEN` — REQUIRED or the map won't load.
+- Anthropic: `VITE_ANTHROPIC_API_KEY` only for live Claude agents; deterministic fallback runs with no key.
+- Restart `npm run dev` after editing `.env.local` (Vite reads VITE_ vars at startup).
