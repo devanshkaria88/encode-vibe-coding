@@ -184,14 +184,16 @@ description: >-
   - Each message carries the standing bid for every still-contested slot.
 
 - Implement :LondonMapScene: as a full-viewport Mapbox 3D map of London.
-  - It mounts a Mapbox map that fills the viewport, using the Mapbox Standard style.
+  - It mounts a Mapbox map that fills the viewport, using the Mapbox Standard style `mapbox://styles/mapbox/standard`.
+    - That style renders extruded 3D buildings.
     - The Mapbox access token comes from `VITE_MAPBOX_TOKEN`.
-  - The camera is centred on London with a non-zero pitch so buildings render in 3D.
-  - A deck.gl overlay is layered on top of the map for the auction visuals.
+  - The initial camera is centred on central London at zoom 15.5 with a pitch of 55 degrees.
+    - The pitch and zoom are chosen so the 3D buildings are clearly visible, not a flat top-down view.
+  - A deck.gl overlay is layered on top of the map for the auction visuals, sharing the map camera.
   - The map resizes to stay full-viewport when the window changes size.
 
   ***acceptance tests***
-  - :LondonMapScene: is configured with a London centre, a non-zero pitch, and the Standard style.
+  - :LondonMapScene: uses the `mapbox://styles/mapbox/standard` style, a central-London centre, zoom 15.5, and pitch 55.
     - A deck.gl overlay is mounted over the map.
   - When the window resizes, the map stays full-viewport.
 
@@ -261,7 +263,8 @@ description: >-
 
 - Add a deterministic :AgentRuntime: and wire the Claude-backed one for in-browser use.
   - Configure the Claude-backed :AgentRuntime: to read its key from `VITE_ANTHROPIC_API_KEY`.
-    - It uses model `claude-sonnet-4-6`.
+    - The Claude bidding strategy uses model `claude-sonnet-4-6` as its default model.
+    - Every Claude request sends `claude-sonnet-4-6`, including runtimes the selector builds with no explicit model.
     - Its request sends the header `anthropic-dangerous-direct-browser-access` set to `true`.
       - That header lets the call run from a browser.
   - Provide a separate deterministic :AgentRuntime: that needs no network and decides per contested slot:
@@ -275,6 +278,7 @@ description: >-
   ***acceptance tests***
   - With no `VITE_ANTHROPIC_API_KEY` present, the selector returns the deterministic :AgentRuntime:.
   - That runtime returns only valid, non-over-budget :BidDecision: values and makes no network request.
+  - With a key present, the :AgentRuntime: the selector builds sends model `claude-sonnet-4-6` in its Claude request.
   - A full headless auction of four deterministic agents over one slot terminates with the slot cleared and a valid
     :AuctionLog:.
 
