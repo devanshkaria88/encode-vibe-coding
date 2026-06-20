@@ -79,6 +79,11 @@ description: >-
 - :RoundStream: pushes :RoundEvent: updates over a WebSocket; a Server-Sent-Events channel is an acceptable fallback.
 - The default auction runs with 4 advertiser agents over the London inventory.
 - The map scene always fills the browser viewport and resizes with the window.
+- The 3D London map is the full-screen background; all panels float over it as glassmorphism cards.
+  - Glassmorphism means a translucent dark fill with a backdrop blur (frosted glass), a subtle light 1px border,
+    rounded corners, and a soft drop shadow.
+  - Panel text is high-contrast and legible over the map — light text with enough weight and spacing to read easily.
+  - Floating panels never cover the whole map; the map stays the main, visible surface behind them.
 
 ***test reqs***
 - :ConformanceTests: for the map scene mock `mapbox-gl` and deck.gl.
@@ -187,14 +192,17 @@ description: >-
   - It mounts a Mapbox map that fills the viewport, using the Mapbox Standard style `mapbox://styles/mapbox/standard`.
     - That style renders extruded 3D buildings.
     - The Mapbox access token comes from `VITE_MAPBOX_TOKEN`.
-  - The initial camera is centred on central London at zoom 15.5 with a pitch of 55 degrees.
-    - The pitch and zoom are chosen so the 3D buildings are clearly visible, not a flat top-down view.
+  - Once the style loads, the map sets its basemap config to the "faded" theme and the "night" light preset.
+    - Concretely it calls the map's config setter for `basemap` `theme` to `faded` and `lightPreset` to `night`.
+    - This gives a dark, subtly-coloured night map so the auction visuals stand out.
+  - The initial camera is centred on central London at zoom 15.5 with a pitch of 60 degrees.
+    - The high pitch keeps the camera close to the ground so the 3D buildings read clearly, not a top-down view.
   - A deck.gl overlay is layered on top of the map for the auction visuals, sharing the map camera.
   - The map resizes to stay full-viewport when the window changes size.
 
   ***acceptance tests***
-  - :LondonMapScene: uses the `mapbox://styles/mapbox/standard` style, a central-London centre, zoom 15.5, and pitch 55.
-    - A deck.gl overlay is mounted over the map.
+  - :LondonMapScene: uses the Standard style with the "faded" theme and the "night" light preset.
+  - The camera is centred on central London at zoom 15.5 with pitch 60, and a deck.gl overlay is mounted over the map.
   - When the window resizes, the map stays full-viewport.
 
 - Implement :BillboardSlot: columns on the :LondonMapScene: overlay.
@@ -218,6 +226,7 @@ description: >-
 - Implement :AuctionHUD: as the round ticker overlay.
   - It shows the current round number, the standing bid for each contested slot, and every agent's remaining budget.
   - It updates on each incoming :RoundEvent:.
+  - The :AuctionHUD: is a glassmorphism panel floating in a corner over the map, not a solid bar.
 
   ***acceptance tests***
   - When a :RoundEvent: for round 3 arrives with two contested slots, the :AuctionHUD: shows round 3.
@@ -235,10 +244,15 @@ description: >-
 - Implement :ScorecardPanel: displaying each :AgentScorecard:.
   - For every agent it shows surplusCaptured, overpayment, leftOnTable, and the concessionErrors with their reasons.
   - Every money figure is taken verbatim from the :AgentScorecard:; the app performs no arithmetic on these numbers.
+  - Each :ScorecardPanel: is a glassmorphism card.
+    - The cards float in a vertical stack along one side of the screen, over the 3D map, not on an opaque page.
+    - Each card is headed by its agent and tints to that agent's colour, with the money figures shown large and legible.
+    - The map stays the main, visible background behind the floating cards.
 
   ***acceptance tests***
   - For scenario S1, agent A's :ScorecardPanel: shows the exact core figures: overpayment 10, surplusCaptured 40.
   - The panel lists the overbid-while-uncontested concession error.
+  - The scorecards render as frosted glassmorphism cards floating over the map, not as an opaque full-screen panel.
 
 - Implement click-to-explain in :ScorecardPanel:.
   - Clicking any money figure on a scorecard reveals the exact :AuctionEvent: items it was computed from.
@@ -283,6 +297,8 @@ description: >-
     :AuctionLog:.
 
 - Wire the live auction into the app entry point so clicking start runs and shows a full auction.
+  - :LondonMapScene: fills the whole screen as the background; the :AuctionHUD: and :ScorecardPanel: float over it.
+    - The scorecards float as a vertical stack along one side; the map stays the main, visible surface.
   - When the user clicks the start control, the app loads inventory through :InventorySource: and shows the resulting
     :BillboardSlot: items as columns on :LondonMapScene:.
   - It creates 4 :AdvertiserAgent: items, each with a budget and a private per-slot valuation.
