@@ -56,11 +56,13 @@ fi
 echo "Now in: $(pwd)"
 
 echo "===== [7/8] Install dependencies (isolated ./node_modules) ====="
-if [ -f package-lock.json ]; then
-  npm ci || exit $?
-else
-  npm install || exit $?
-fi
+# The renderer-generated package-lock.json is frequently incomplete (it has been
+# observed to omit vitest's own runtime dependency 'vite-node'). `npm ci` installs
+# the lockfile verbatim, faithfully reproducing the gap so vitest cannot start.
+# Drop the generated lockfile and let `npm install` resolve the full tree from
+# package.json instead.
+rm -f package-lock.json
+npm install || exit $?
 
 echo "===== [8/8] Run conformance tests (Vitest) ====="
 # The conformance folder ships its own vitest.config.ts that imports `vitest/config`,
