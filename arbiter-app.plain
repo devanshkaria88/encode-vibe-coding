@@ -246,8 +246,8 @@ description: >-
   - It calls the Anthropic messages endpoint with model `claude-sonnet-4-6`.
     - The request sends the header `anthropic-dangerous-direct-browser-access` set to `true`.
     - That header lets the call run from a browser.
-  - It falls back to a deterministic, valuation-driven decision in any of these cases:
-    - no API key is set, the API call fails, or the reply cannot be parsed into valid :BidDecision: values.
+  - It falls back to a deterministic, valuation-driven decision when no API key is set or the API call fails.
+  - When a key is set but the reply cannot be parsed, the agent holds for that slot, matching the Claude-backed runtime.
   - The deterministic fallback decides per contested slot:
     - if the agent is the current leader, hold;
     - else if a one-increment raise stays within the agent's valuation and budget, raise by one increment;
