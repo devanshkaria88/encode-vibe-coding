@@ -84,6 +84,10 @@ description: >-
 - :ConformanceTests: for the map scene mock `mapbox-gl` and deck.gl.
   - They never instantiate a real Mapbox map or GPU context, and run under jsdom.
   - They assert on the scene configuration and the overlay layer data, not on real WebGL rendering.
+- :ConformanceTests: for :AgentRuntime: selection use `vi.stubEnv` for the env and `vi.stubGlobal` for global `fetch`.
+  - For the Claude path: stub `VITE_ANTHROPIC_API_KEY` and mock `fetch` to resolve a JSON body with a `content` array.
+  - For the deterministic path: leave the key unset and assert `fetch` is never called.
+  - The deterministic path is tested with plain calls — no env or network mocking is needed for its decision logic.
 
 ***functional specs***
 
