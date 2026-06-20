@@ -74,6 +74,9 @@ description: >-
   - One agent's valuation is never placed in another agent's prompt.
 - :ArenaOrchestrator: depends on the :AgentRuntime: decision contract, not on the Claude API directly.
   - This lets tests inject a deterministic :AgentRuntime: while production wires the Claude-backed one.
+- :ArenaOrchestrator: ends the auction when the count of cleared slots equals the total number of slots in the auction.
+  - The total number of slots is the element count (length) of the ordered slot list, not the size of any set or map.
+  - The round loop keeps running while strictly fewer slots have cleared than that total slot count.
 - The deterministic auction maths is delegated entirely to arbiter-core, imported from `src/core/`.
   - The app never recomputes a cleared price, fair price, overpayment, surplus, or left-on-table value.
 - :RoundStream: pushes :RoundEvent: updates over a WebSocket; a Server-Sent-Events channel is an acceptable fallback.
@@ -154,13 +157,22 @@ description: >-
     - It asks each agent for its :BidDecision: from the live state.
     - The live state already reflects every :Bid: and :DropOut: made earlier in the same round.
   - On a slot with no standing bid yet, a contender enters by bidding at least the slot basePrice.
+  - A slot's winner always has its own opening :Bid: recorded in the :AuctionLog: before that slot clears.
+    - The opening :Bid: is at least the slot basePrice, so :ClearingEngine: prices an uncontested win at basePrice.
+    - This holds even for a sole contender — the slot never clears as one that nobody bid on.
   - On a slot that already has a standing bid, a non-leading contender does one of:
     - raise to at least the standing bid plus the slot bidIncrement, becoming the new leader; or
-    - drop out, recording priceAtDropOut as the standing bid it declined to beat.
+    - drop out, recording priceAtDropOut as the standing bid it declined to beat; or
+    - hold, taking no action this round while staying a contender.
   - The current leader of a slot takes no action that round and stays a contender.
+  - A non-leading contender that holds stays a contender; a slot does not clear just because non-leaders are waiting.
   - The loop advances rounds until every slot has cleared, then stops.
-  - Termination is guaranteed: each round every non-leading contender either raises the price or drops out.
-    - An agent that cannot afford the next raise drops out, so contenders only ever decrease.
+  - A round is a stall on a contested slot when that round completes with no raise and no drop-out on that slot.
+    - On a stalled contested slot the slot resolves at once: the current leader becomes the winner at the standing bid.
+    - Each other remaining contender on the slot is recorded as a :DropOut: at that standing bid (its priceAtDropOut).
+  - Termination is guaranteed even when agents hold.
+    - Each round either changes a contested slot through a raise or a drop-out, or the stall rule resolves it.
+    - So every contested slot strictly progresses until it clears; an agent that cannot afford a raise drops out.
 
   ***acceptance tests***
   - A headless single-slot run with two deterministic agents, where one keeps raising and the other drops once the price
