@@ -3,6 +3,7 @@ dist/
 build/
 .env
 .env.local
+/dist/.env.local
 .DS_Store
 *.log
 
@@ -10,3 +11,4 @@ build/
 plain_modules/
 conformance_tests/
 .tmp/
+.specstory/
