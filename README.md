@@ -71,30 +71,37 @@ Worked example baked into the test suite — **scenario S1**: agent A privately 
 
 ## Architecture
 
+```mermaid
+flowchart TB
+  subgraph APP["arbiter-app (React + Vite)"]
+    direction TB
+    INV["InventorySource<br/>(OpenStreetMap Overpass, cached)"] --> PRICE["PricingModel"]
+    PRICE --> SLOTS["BillboardSlot list"]
+    SLOTS --> ORCH["ArenaOrchestrator<br/>drives synchronized rounds"]
+    ORCH -- "asks each round" --> AGENTS["AgentRuntime x4<br/>English auction<br/>Claude or deterministic"]
+    AGENTS -- "bids and drop-outs" --> ORCH
+    ORCH --> STREAM["RoundStream"] --> HUD["AuctionHUD<br/>live round ticker"]
+    ORCH --> SCENE["LondonMapScene<br/>Mapbox 3D + deck.gl<br/>billboard signs, bid arcs, pulses"]
+    ORCH --> CLEAR["ClearingEngine"]
+    CLEAR --> REF["Referee"] --> CARDS["AgentScorecard x4"] --> PANEL["ScorecardPanel<br/>click-to-explain receipts"]
+  end
+
+  subgraph CORE["arbiter-core (pure and deterministic, no I/O)"]
+    direction LR
+    C1["AuctionLog"]
+    C2["AuctionValidator"]
+    C3["ClearingEngine"]
+    C4["FairPrice"]
+    C5["Referee"]
+  end
+
+  CORE -- "required by: build order + verbatim money maths" --> APP
+
+  classDef core fill:#0b3d2e,stroke:#22c55e,color:#e6fff4;
+  class C1,C2,C3,C4,C5 core;
 ```
-┌──────────────────────────── arbiter-app (React + Vite) ────────────────────────────┐
-│                                                                                     │
-│  InventorySource ──> PricingModel ──> BillboardSlot[]                                │
-│        │  (OpenStreetMap Overpass, cached)                                           │
-│        ▼                                                                             │
-│  ArenaOrchestrator ──drives rounds──> AgentRuntime × 4                               │
-│        │   (English auction; selector picks Claude- or deterministic-backed)        │
-│        │                                                                             │
-│        ├── RoundStream ──> AuctionHUD (live round ticker, liquid glass)              │
-│        ├── LondonMapScene (Mapbox 3D + deck.gl): building-anchored billboard         │
-│        │     markers, bid arcs, clearing pulses                                      │
-│        ▼                                                                             │
-│  ClearingEngine ──> Referee ──> AgentScorecard × 4 ──> ScorecardPanel (click‑to‑     │
-│        (imported verbatim from arbiter-core — the app never recomputes money)        │
-│                                                                                     │
-└─────────────────────────────────────────────────────────────────────────────────────┘
-            ▲
-            │  requires (build order + verbatim core)
-┌───────────┴──────────── arbiter-core (pure, deterministic) ──────────────┐
-│  AuctionLog · AuctionValidator · ClearingEngine · FairPrice · Referee     │
-│  No I/O, no randomness, no time. Just the maths of a fair contest.        │
-└───────────────────────────────────────────────────────────────────────────┘
-```
+
+> The app **imports the money maths verbatim** from `arbiter-core` and never recomputes a price. `ClearingEngine` and `Referee` shown inside the app are the same ones built in the deterministic core.
 
 ## Tech stack
 
