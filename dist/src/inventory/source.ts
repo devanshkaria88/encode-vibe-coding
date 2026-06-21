@@ -18,12 +18,20 @@ out center;
 export async function fetchInventory(): Promise<SpatialBillboardSlot[]> {
   // 1. Try to fetch from static cache file first
   try {
-    const cachedResponse = await fetch(CACHE_PATH);
-    if (cachedResponse.ok) {
-      return await cachedResponse.json();
+    // Ensure we are in a browser-like environment with a valid origin before fetching relative paths
+    const origin = typeof window !== 'undefined' && window.location?.origin !== 'null' 
+      ? window.location.origin 
+      : '';
+    
+    if (origin) {
+      const cacheUrl = new URL(CACHE_PATH, origin).toString();
+      const cachedResponse = await fetch(cacheUrl);
+      if (cachedResponse.ok) {
+        return await cachedResponse.json();
+      }
     }
   } catch (e) {
-    console.warn('Inventory cache file not found, checking local storage...', e);
+    // Fall through to other methods
   }
 
   // 2. Try to fetch from local storage (previous live fetch result)
@@ -37,13 +45,18 @@ export async function fetchInventory(): Promise<SpatialBillboardSlot[]> {
   }
 
   // 3. Fetch from Overpass
-  const response = await fetch(OVERPASS_URL, {
-    method: 'POST',
-    body: `data=${encodeURIComponent(OVERPASS_QUERY)}`,
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-  });
+  let response: Response;
+  try {
+    response = await fetch(OVERPASS_URL, {
+      method: 'POST',
+      body: `data=${encodeURIComponent(OVERPASS_QUERY)}`,
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+    });
+  } catch (e) {
+    throw new Error(`Failed to connect to Overpass API: ${e instanceof Error ? e.message : String(e)}`);
+  }
 
   if (!response.ok) {
     throw new Error(`Overpass API error: ${response.status} ${response.statusText}`);

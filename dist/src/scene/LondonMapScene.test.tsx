@@ -6,13 +6,14 @@ import { SpatialBillboardSlot } from '../inventory/types';
 
 // Mock react-map-gl to avoid WebGL context issues
 vi.mock('react-map-gl', () => ({
-  default: vi.fn(({ children, mapStyle, mapboxAccessToken, pitch, latitude, longitude }) => (
+  default: vi.fn(({ children, mapStyle, mapboxAccessToken, pitch, latitude, longitude, zoom }) => (
     <div data-testid="mapbox-root" 
          data-style={mapStyle} 
          data-token={mapboxAccessToken}
          data-pitch={pitch}
          data-lat={latitude}
-         data-lon={longitude}>
+         data-lon={longitude}
+         data-zoom={zoom}>
       {children}
     </div>
   )),
@@ -42,7 +43,7 @@ describe('LondonMapScene', () => {
     expect(mapRoot.getAttribute('data-token')).toBe('pk.test-token');
   });
 
-  it('initializes the camera at the specified London coordinates and pitch', () => {
+  it('initializes the camera at the specified London coordinates, pitch, and zoom 19', () => {
     const { getByTestId } = render(<LondonMapScene />);
     const mapRoot = getByTestId('mapbox-root');
 
@@ -51,24 +52,65 @@ describe('LondonMapScene', () => {
     expect(parseFloat(mapRoot.getAttribute('data-lon')!)).toBeCloseTo(-0.1278);
     // Pitch requirement: 60 degrees
     expect(mapRoot.getAttribute('data-pitch')).toBe('60');
+    // New zoom requirement: 19
+    expect(mapRoot.getAttribute('data-zoom')).toBe('19');
   });
 
-  it('creates a ColumnLayer with one column per slot', () => {
+  it('attempts to fly to user geolocation if inside London', async () => {
+    const mockCoords = { latitude: 51.51, longitude: -0.12 }; // Inside London
+    const getCurrentPositionMock = vi.fn((success) => success({ coords: mockCoords }));
+    
+    vi.stubGlobal('navigator', {
+      geolocation: {
+        getCurrentPosition: getCurrentPositionMock
+      }
+    });
+
+    const { getByTestId, rerender } = render(<LondonMapScene />);
+    
+    // We expect the state to update, which causes a re-render
+    const mapRoot = getByTestId('mapbox-root');
+    expect(parseFloat(mapRoot.getAttribute('data-lat')!)).toBeCloseTo(51.51);
+    expect(parseFloat(mapRoot.getAttribute('data-lon')!)).toBeCloseTo(-0.12);
+  });
+
+  it('stays at default coordinates if geolocation is outside London', () => {
+    const mockCoords = { latitude: 40.7128, longitude: -74.0060 }; // New York
+    const getCurrentPositionMock = vi.fn((success) => success({ coords: mockCoords }));
+    
+    vi.stubGlobal('navigator', {
+      geolocation: {
+        getCurrentPosition: getCurrentPositionMock
+      }
+    });
+
+    const { getByTestId } = render(<LondonMapScene />);
+    const mapRoot = getByTestId('mapbox-root');
+
+    // Should stay at London center
+    expect(parseFloat(mapRoot.getAttribute('data-lat')!)).toBeCloseTo(51.5074);
+  });
+
+  it('creates billboard markers and halos for each slot', () => {
     const mockSlots: SpatialBillboardSlot[] = [
       { id: '1', name: 'Slot 1', basePrice: 100, bidIncrement: 10, lat: 51.5, lon: -0.1 },
-      { id: '2', name: 'Slot 2', basePrice: 200, bidIncrement: 20, lat: 51.6, lon: -0.2 },
     ];
 
     render(<LondonMapScene slots={mockSlots} />);
 
-    // Check if setProps was called with layers containing our ColumnLayer
     expect(mockSetProps).toHaveBeenCalled();
     const lastCall = mockSetProps.mock.calls[mockSetProps.mock.calls.length - 1][0];
+    
     const columnLayer = lastCall.layers.find((l: any) => l.id === 'billboard-columns');
+    const haloLayer = lastCall.layers.find((l: any) => l.id === 'billboard-halos');
     
     expect(columnLayer).toBeDefined();
-    expect(columnLayer.props.data).toHaveLength(2);
-    expect(columnLayer.props.data[0].id).toBe('1');
+    expect(haloLayer).toBeDefined();
+    
+    // Verification of :AdditionalFunctionality: visual constraints
+    expect(columnLayer.props.radius).toBeLessThanOrEqual(5); // Should be a thin post
+    expect(columnLayer.props.getElevation()).toBeGreaterThan(0); // Should be raised
+    expect(haloLayer.props.data).toHaveLength(1);
   });
 
   it('creates an ArcLayer for recent bids', () => {

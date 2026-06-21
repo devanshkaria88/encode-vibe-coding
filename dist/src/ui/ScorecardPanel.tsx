@@ -38,15 +38,15 @@ const ScorecardPanel: React.FC<ScorecardPanelProps> = ({ scorecard, clearingResu
   return (
     <div style={{
       padding: '20px',
-      borderRadius: '12px',
-      background: 'rgba(20, 20, 30, 0.75)',
-      backdropFilter: 'blur(12px)',
-      WebkitBackdropFilter: 'blur(12px)',
+      borderRadius: '16px',
+      background: 'rgba(15, 15, 25, 0.3)',
+      backdropFilter: 'blur(20px) saturate(180%)',
+      WebkitBackdropFilter: 'blur(20px) saturate(180%)',
       borderLeft: `4px solid ${rgb}`,
-      borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-      borderRight: '1px solid rgba(255, 255, 255, 0.1)',
-      borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-      boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.5)',
+      borderTop: '1px solid rgba(255, 255, 255, 0.15)',
+      borderRight: '1px solid rgba(255, 255, 255, 0.15)',
+      borderBottom: '1px solid rgba(255, 255, 255, 0.15)',
+      boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.5), inset 0 1px 0 0 rgba(255, 255, 255, 0.1)',
       color: '#fff',
       marginBottom: '16px',
       fontFamily: 'system-ui, -apple-system, sans-serif'

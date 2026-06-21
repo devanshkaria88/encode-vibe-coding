@@ -26,12 +26,12 @@ const AuctionHUD: React.FC<AuctionHUDProps> = ({ event, slots }) => {
       maxHeight: '80vh',
       overflowY: 'auto',
       padding: '20px',
-      borderRadius: '12px',
-      background: 'rgba(20, 20, 30, 0.7)',
-      backdropFilter: 'blur(10px)',
-      WebkitBackdropFilter: 'blur(10px)', // For broader compatibility
-      border: '1px solid rgba(255, 255, 255, 0.1)',
-      boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.37)',
+      borderRadius: '16px',
+      background: 'rgba(15, 15, 25, 0.25)',
+      backdropFilter: 'blur(20px) saturate(180%)',
+      WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+      border: '1px solid rgba(255, 255, 255, 0.15)',
+      boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.4), inset 0 1px 0 0 rgba(255, 255, 255, 0.1)',
       color: '#fff',
       zIndex: 100,
       fontFamily: 'system-ui, -apple-system, sans-serif'

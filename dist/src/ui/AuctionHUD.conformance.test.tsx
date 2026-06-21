@@ -40,13 +40,13 @@ describe('AuctionHUD Conformance', () => {
       expect(style.right).toBe('20px');
 
       // Check glassmorphism characteristics
-      expect(style.backgroundColor).toContain('rgba(20, 20, 30, 0.7)');
+      expect(style.backgroundColor).toContain('rgba(15, 15, 25, 0.25)');
       
       // JSDOM does not compute backdropFilter. We check the element style directly as a fallback.
       const backdropFilter = style.backdropFilter || panel.style.backdropFilter;
-      expect(backdropFilter).toContain('blur(10px)');
+      expect(backdropFilter).toContain('blur(20px)');
       
-      expect(style.border).toContain('rgba(255, 255, 255, 0.1)');
+      expect(style.border).toContain('rgba(255, 255, 255, 0.15)');
     }
   });
 

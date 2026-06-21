@@ -9,6 +9,9 @@ import { createAgentRuntime } from './agents/selector';
 import { ArenaOrchestrator } from './arena/orchestrator';
 import { SpatialBillboardSlot } from './inventory/types';
 
+const MAX_AUCTION_SLOTS = 24;
+const CENTRAL_LONDON = { lat: 51.5074, lng: -0.1278 };
+
 /**
  * Main Application Component.
  * Wires the live auction into the entry point.
@@ -26,7 +29,16 @@ const App: React.FC = () => {
 
     try {
       // 1. Load Inventory
-      const loadedSlots = await fetchInventory();
+      const allSlots = await fetchInventory();
+
+      // Filter to slots closest to central London to keep the scene smooth
+      const sortedByProximity = [...allSlots].sort((a, b) => {
+        const distA = Math.sqrt(Math.pow(a.latitude - CENTRAL_LONDON.lat, 2) + Math.pow(a.longitude - CENTRAL_LONDON.lng, 2));
+        const distB = Math.sqrt(Math.pow(b.latitude - CENTRAL_LONDON.lat, 2) + Math.pow(b.longitude - CENTRAL_LONDON.lng, 2));
+        return distA - distB;
+      });
+
+      const loadedSlots = sortedByProximity.slice(0, MAX_AUCTION_SLOTS);
       setSlots(loadedSlots);
 
       // 2. Setup Agents (4 agents with budgets and valuations)
@@ -37,10 +49,11 @@ const App: React.FC = () => {
         { id: 'agent-4', budget: 5500, trueValuation: {} }
       ];
 
-      // Assign random-ish private valuations based on basePrice for the demo
-      agents.forEach(agent => {
+      // Assign deterministic private valuations based on agent index and basePrice
+      agents.forEach((agent, index) => {
         loadedSlots.forEach(slot => {
-          agent.trueValuation[slot.id] = Math.floor(slot.basePrice * (1.2 + Math.random()));
+          // Valuation is basePrice * (1.2 + 0.1 * agentIndex)
+          agent.trueValuation[slot.id] = Math.floor(slot.basePrice * (1.2 + (index * 0.1)));
         });
       });
 
@@ -83,11 +96,12 @@ const App: React.FC = () => {
         top: '20px',
         left: '20px',
         padding: '24px',
-        borderRadius: '12px',
-        background: 'rgba(20, 20, 30, 0.7)',
-        backdropFilter: 'blur(10px)',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
-        boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.37)',
+        borderRadius: '16px',
+        background: 'rgba(15, 15, 25, 0.25)',
+        backdropFilter: 'blur(20px) saturate(180%)',
+        WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+        border: '1px solid rgba(255, 255, 255, 0.15)',
+        boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.4), inset 0 1px 0 0 rgba(255, 255, 255, 0.1)',
         color: '#fff',
         zIndex: 10
       }}>

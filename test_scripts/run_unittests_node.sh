@@ -59,8 +59,11 @@ rm -f package-lock.json
 npm install || exit $?
 
 echo "===== [7/7] Run unit tests (Vitest) ====="
-echo "+ npx vitest run"
-npx vitest run
+# Give Vitest workers extra old-space headroom: the scene tests pull in the heavy
+# mapbox-gl + deck.gl module graphs, which can otherwise trip a worker OOM. This is
+# the proven `npx vitest run` (default thread pool) with a larger heap only.
+echo "+ NODE_OPTIONS=--max-old-space-size=4096 npx vitest run"
+NODE_OPTIONS="--max-old-space-size=4096" npx vitest run
 exit_code=$?
 echo "Unit-test command 'npx vitest run' exited with code $exit_code (working folder: $(pwd))"
 exit $exit_code

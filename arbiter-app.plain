@@ -338,3 +338,60 @@ description: >-
   - Starting the app with inventory and agents supplied by deterministic fallbacks loads the slots onto :LondonMapScene:
     and, when the run finishes, renders exactly one :ScorecardPanel: per agent populated from the final bundle.
   - The money figures shown on each :ScorecardPanel: equal the bundle's :AgentScorecard: values, with no recomputation.
+
+- Refine the :LondonMapScene: camera to open close to the ground, ideally at the viewer's own location.
+  - The initial camera keeps its existing centre on central London and its existing pitch of 60 degrees unchanged.
+    - Only the initial zoom changes: it opens at zoom 19, right down among the buildings rather than high above them.
+    - Leaving the central-London centre and the 60-degree pitch untouched preserves the existing initial-view contract.
+  - When the scene mounts it asks the browser for the viewer's geolocation exactly once, and only if that API exists.
+    - If a position is granted and it falls inside the London bounding box, the camera flies to it at zoom 19, pitch 60.
+    - If geolocation is missing, denied, errors, or lands outside London, the camera simply stays on central London.
+  - The fly-in is a smooth animated camera move on the already-mounted map.
+    - It never changes the initial centre, pitch, or the configured initial zoom values the scene was created with.
+
+  ***acceptance tests***
+  - With geolocation unavailable or denied, the scene still mounts centred on central London at pitch 60 and zoom 19,
+    and issues no camera move to anywhere outside London.
+
+- Refine the billboard visuals so each :BillboardSlot: reads as a sign fixed to its building, not a floating cylinder.
+  - The primary slot layer keeps its existing layer identifier and exactly one entry per :BillboardSlot:.
+    - So the number of slot markers always equals the slot count, and each entry still carries its own slot identity.
+  - Each slot is drawn as a compact, flat billboard marker pinned at the slot's longitude and latitude.
+    - The marker is raised to roughly rooftop height so it sits against the building at that point.
+    - It reads as a small sign on a thin post, never as a wide extruded column rising from the street.
+  - The building location is highlighted so the eye is drawn to it.
+    - A soft glowing halo is drawn at the slot's position, sized and brightened by the slot's current value.
+    - A higher-valued slot is shown more prominently than a lower-valued one.
+  - The marker and its highlight follow the existing colour rules.
+    - A slot that has cleared locks to its winning agent's colour, exactly as the clearing visuals already do.
+
+  ***acceptance tests***
+  - For an auction of 6 slots, the primary slot layer holds exactly 6 entries, one at each slot's longitude and
+    latitude, and a higher-valued slot renders more prominently than a lower-valued one.
+
+- Refine every floating panel over :LondonMapScene: into a lighter, true liquid-glass material so the map shows through.
+  - This applies to the title-and-control panel, the :AuctionHUD:, and each :ScorecardPanel:.
+  - Each panel's fill becomes far more translucent than before — only about a quarter to a third opaque.
+    - The 3D map and its buildings stay clearly visible through the glass.
+  - The frosted effect is stronger: a larger background blur combined with boosted saturation of what sits behind it.
+    - This gives the bright, wet 'liquid glass' look rather than a flat dark slab.
+  - Each panel gains a thin bright hairline border and a soft light sheen along its top edge, over a layered shadow.
+    - Corners stay generously rounded.
+  - Text stays high-contrast and fully legible: light text with enough weight, size, and contrast to read over the map.
+  - Only the glass material changes; every panel's content, layout, figures, and agent colours stay exactly as they are.
+
+  ***acceptance tests***
+  - The control panel, the :AuctionHUD:, and a :ScorecardPanel: each still display their existing content while
+    rendering as a translucent, blurred, hairline-bordered glass card that the map is visible through.
+
+- Bound the live auction to a map-centred subset of inventory so the scene and the round loop stay smooth.
+  - :InventorySource: still fetches and returns the full normalised set; nothing about its own contract changes.
+  - The cap is applied where the auction is started, not inside :InventorySource:.
+    - When starting an auction, the app keeps only the :BillboardSlot: items closest to central London.
+    - Closeness is the plain distance from central London to each slot's longitude and latitude.
+    - It keeps at most a fixed maximum number of slots, default 24, held as a single named constant so it is easy to tune.
+  - Only the kept slots are drawn as markers and entered into :ArenaOrchestrator:; the rest are not shown or auctioned.
+
+  ***acceptance tests***
+  - Starting an auction over an inventory of more than 24 slots runs :ArenaOrchestrator: over exactly the 24 slots
+    closest to central London, and the scene shows exactly those 24 as markers.

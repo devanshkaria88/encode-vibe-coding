@@ -22,7 +22,7 @@ describe('Inventory Source', () => {
     const result = await fetchInventory();
     expect(result).toEqual(mockData);
     expect(fetch).toHaveBeenCalledTimes(1);
-    expect(fetch).toHaveBeenCalledWith('/cache/london_inventory.json');
+    expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/cache/london_inventory.json'));
   });
 
   it('should return localStorage data if file cache is missing', async () => {
