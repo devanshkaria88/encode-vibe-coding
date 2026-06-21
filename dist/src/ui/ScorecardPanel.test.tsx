@@ -54,6 +54,23 @@ describe('ScorecardPanel', () => {
     expect(screen.getByText('Premature Drop:')).toBeDefined();
   });
 
+  it('groups identical concession errors and shows a count', () => {
+    const multiErrorScorecard: AgentScorecard = {
+      ...mockScorecard,
+      concessionErrors: [
+        { agentId: 'a1', slotId: 's1', round: 1, type: 'premature-drop', reason: 'Value > Price' },
+        { agentId: 'a1', slotId: 's2', round: 2, type: 'premature-drop', reason: 'Value > Price' },
+        { agentId: 'a1', slotId: 's3', round: 3, type: 'overbid-while-uncontested', reason: 'Already leader' },
+      ]
+    };
+    render(<ScorecardPanel scorecard={multiErrorScorecard} />);
+    
+    // Check for grouped text
+    expect(screen.getByText(/Premature Drop ×2:/)).toBeDefined();
+    expect(screen.getByText(/Overbid:/)).toBeDefined(); // No count for single error
+    expect(screen.getByText('Value > Price')).toBeDefined();
+  });
+
   it('identifies the agent correctly in the header', () => {
     render(<ScorecardPanel scorecard={mockScorecard} clearingResults={mockResults} />);
     expect(screen.getByText('Agent agent-1')).toBeDefined();

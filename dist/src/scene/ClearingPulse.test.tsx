@@ -7,8 +7,9 @@ import { AGENT_COLORS } from './anchors';
 
 // Mock Mapbox and DeckGL to avoid WebGL context issues in JSDOM
 vi.mock('react-map-gl', () => ({
-  default: ({ children }: any) => <div>{children}</div>,
+  default: ({ children }: any) => <div data-testid="map-mock">{children}</div>,
   useControl: vi.fn(),
+  NavigationControl: () => <div data-testid="navigation-control-mock" />,
 }));
 
 vi.mock('@deck.gl/mapbox', () => ({

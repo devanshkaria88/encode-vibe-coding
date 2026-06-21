@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AgentScorecard, AuctionEvent } from '../core/model';
+import { AgentScorecard, AuctionEvent, isBid } from '../core/model';
 import { ClearingResult } from '../core/clearing';
 import { AGENT_COLORS } from '../scene/anchors';
 import { ExplainingField, getEvidenceEvents } from './scorecardUtils';
@@ -9,13 +9,19 @@ interface ScorecardPanelProps {
   readonly clearingResults?: Record<string, ClearingResult>;
 }
 
-/**
- * :ScorecardPanel:
- * Displays an individual agent's auction performance results.
- * Includes "click-to-explain" functionality for metric transparency.
- */
 const ScorecardPanel: React.FC<ScorecardPanelProps> = ({ scorecard, clearingResults }) => {
   const [explanation, setExplanation] = useState<{ field: ExplainingField; events: AuctionEvent[] }>({ field: null, events: [] });
+
+  // Group identical concession errors
+  const groupedErrors = scorecard.concessionErrors.reduce((acc, err) => {
+    const key = `${err.type}-${err.reason}`;
+    if (!acc[key]) {
+      acc[key] = { ...err, count: 1 };
+    } else {
+      acc[key].count++;
+    }
+    return acc;
+  }, {} as Record<string, typeof scorecard.concessionErrors[0] & { count: number }>);
   const color = AGENT_COLORS[scorecard.agentId] || [255, 255, 255];
   const rgb = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
 
@@ -24,86 +30,80 @@ const ScorecardPanel: React.FC<ScorecardPanelProps> = ({ scorecard, clearingResu
       setExplanation({ field: null, events: [] });
       return;
     }
-
     const relevantEvents = getEvidenceEvents(field, scorecard, clearingResults);
     setExplanation({ field, events: relevantEvents });
   };
 
-  const clickableStyle: React.CSSProperties = {
-    cursor: 'pointer',
-    borderBottom: '1px dashed rgba(255,255,255,0.3)',
-    transition: 'opacity 0.2s'
-  };
-
   return (
-    <div style={{
-      padding: '20px',
+    <div 
+      data-testid={`scorecard-${scorecard.agentId}`}
+      style={{
+      padding: '16px',
       borderRadius: '16px',
-      background: 'rgba(15, 15, 25, 0.3)',
-      backdropFilter: 'blur(20px) saturate(180%)',
-      WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+      background: 'rgba(15, 15, 25, 0.2)',
+      backdropFilter: 'blur(8px) saturate(180%)',
+      WebkitBackdropFilter: 'blur(8px) saturate(180%)',
       borderLeft: `4px solid ${rgb}`,
       borderTop: '1px solid rgba(255, 255, 255, 0.15)',
       borderRight: '1px solid rgba(255, 255, 255, 0.15)',
       borderBottom: '1px solid rgba(255, 255, 255, 0.15)',
       boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.5), inset 0 1px 0 0 rgba(255, 255, 255, 0.1)',
       color: '#fff',
-      marginBottom: '16px',
-      fontFamily: 'system-ui, -apple-system, sans-serif'
+      height: '180px',
+      display: 'flex',
+      flexDirection: 'column',
+      fontFamily: 'system-ui, -apple-system, sans-serif',
+      boxSizing: 'border-box'
     }}>
-      <h3 style={{ margin: '0 0 12px 0', fontSize: '1rem', color: rgb }}>
+      <h3 style={{ margin: '0 0 12px 0', fontSize: '1rem', color: rgb, fontWeight: 700 }}>
         Agent {scorecard.agentId}
       </h3>
       
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
-        <div onClick={() => handleExplain('surplus')} style={clickableStyle}>
-          <div style={{ fontSize: '0.7rem', opacity: 0.6, textTransform: 'uppercase' }}>Surplus ⓘ</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+        <div onClick={() => handleExplain('surplus')} style={{ cursor: 'pointer' }}>
+          <div style={{ fontSize: '0.7rem', opacity: 0.6, fontWeight: 600 }}>SURPLUS ⓘ</div>
           <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>£{scorecard.surplusCaptured.toLocaleString()}</div>
         </div>
-        <div onClick={() => handleExplain('overpayment')} style={clickableStyle}>
-          <div style={{ fontSize: '0.7rem', opacity: 0.6, textTransform: 'uppercase' }}>Overpaid ⓘ</div>
+        <div onClick={() => handleExplain('overpayment')} style={{ cursor: 'pointer' }}>
+          <div style={{ fontSize: '0.7rem', opacity: 0.6, fontWeight: 600 }}>OVERPAID ⓘ</div>
           <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>£{scorecard.overpayment.toLocaleString()}</div>
         </div>
-        <div onClick={() => handleExplain('leftOnTable')} style={{ ...clickableStyle, gridColumn: 'span 2' }}>
-          <div style={{ fontSize: '0.7rem', opacity: 0.6, textTransform: 'uppercase' }}>Left on Table ⓘ</div>
-          <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: scorecard.leftOnTable > 0 ? '#fbbf24' : '#fff' }}>
-            £{scorecard.leftOnTable.toLocaleString()}
-          </div>
+        <div onClick={() => handleExplain('leftOnTable')} style={{ cursor: 'pointer' }}>
+          <div style={{ fontSize: '0.7rem', opacity: 0.6, fontWeight: 600 }}>LEFT ON TABLE ⓘ</div>
+          <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>£{scorecard.leftOnTable.toLocaleString()}</div>
         </div>
       </div>
 
-      {explanation.field && (
-        <div style={{ 
-          margin: '12px 0', 
-          padding: '10px', 
-          background: 'rgba(255,255,255,0.05)', 
-          borderRadius: '6px',
-          fontSize: '0.75rem',
-          border: '1px solid rgba(255,255,255,0.1)'
-        }}>
-          <div style={{ fontWeight: 'bold', marginBottom: '6px', color: '#93c5fd' }}>
-            Evidence for {explanation.field}:
-          </div>
-          {explanation.events.length === 0 ? (
-            <div style={{ opacity: 0.5 }}>No events recorded for this metric.</div>
-          ) : (
-            explanation.events.map((ev, i) => (
-              <div key={i} style={{ marginBottom: '4px' }}>
-                Round {ev.round}: {ev.agentId} {'amount' in ev ? `Bid £${ev.amount}` : `Dropped at £${ev.priceAtDropOut}`}
+      {scorecard.concessionErrors.length > 0 && (
+        <div style={{ marginTop: 'auto', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '8px', overflowY: 'auto' }}>
+          {Object.values(groupedErrors).map((err, i) => (
+            <div key={i} style={{ marginBottom: '4px' }}>
+              <div style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#fbbf24' }}>
+                {`${err.type === 'premature-drop' ? 'Premature Drop' : 'Overbid'}${err.count > 1 ? ` ×${err.count}` : ''}:`}
               </div>
-            ))
-          )}
+              <div style={{ fontSize: '0.7rem', opacity: 0.8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {err.reason}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
-      {scorecard.concessionErrors.length > 0 && (
-        <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '12px' }}>
-          <div style={{ fontSize: '0.7rem', opacity: 0.6, textTransform: 'uppercase', marginBottom: '8px' }}>Flagged Actions</div>
-          {scorecard.concessionErrors.map((error, idx) => (
-            <div key={idx} style={{ fontSize: '0.8rem', marginBottom: '6px', lineHeight: '1.4', background: 'rgba(239, 68, 68, 0.1)', padding: '6px', borderRadius: '4px' }}>
-              <strong>{error.type === 'premature-drop' ? 'Premature Drop' : 'Inefficient Bid'}:</strong> {error.reason}
-            </div>
-          ))}
+      {explanation.field && (
+        <div style={{ marginTop: '16px', borderTop: '1px solid rgba(255,255,255,0.2)', paddingTop: '12px' }}>
+          <div style={{ fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '8px' }}>
+            Evidence for {explanation.field}
+          </div>
+          <div style={{ maxHeight: '120px', overflowY: 'auto' }}>
+            {explanation.events.map((ev, i) => (
+              <div key={i} style={{ fontSize: '0.7rem', opacity: 0.8, marginBottom: '4px' }}>
+                Round {ev.round}: {ev.agentId} {isBid(ev) ? `Bid £${ev.amount}` : `Dropped at £${ev.priceAtDropOut}`}
+              </div>
+            ))}
+            {explanation.events.length === 0 && (
+              <div style={{ fontSize: '0.7rem', opacity: 0.5 }}>No events found for this metric.</div>
+            )}
+          </div>
         </div>
       )}
     </div>

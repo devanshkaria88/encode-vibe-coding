@@ -12,3 +12,5 @@ plain_modules/
 conformance_tests/
 .tmp/
 .specstory/
+# vite build output of the app
+dist/dist/

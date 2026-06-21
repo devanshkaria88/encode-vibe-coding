@@ -141,3 +141,10 @@ export function createDropOut(data: DropOut): DropOut {
   }
   return Object.freeze({ ...data });
 }
+
+/**
+ * Type guard to check if an AuctionEvent is a Bid.
+ */
+export function isBid(event: AuctionEvent): event is Bid {
+  return 'amount' in event;
+}

@@ -56,6 +56,9 @@ description: >-
 - :AuctionHUD: is the round ticker overlay.
   - It shows the current round, the standing bid per contested slot, and remaining budgets.
 
+- :MiniMap: is a small 2D top-down overview map inset over :LondonMapScene:.
+  - It orients the user by showing where the main map is centred, with a marker at that centre.
+
 ***implementation reqs***
 
 - :InventorySource: fetches from the public OpenStreetMap Overpass API, which needs no API key.
@@ -395,3 +398,173 @@ description: >-
   ***acceptance tests***
   - Starting an auction over an inventory of more than 24 slots runs :ArenaOrchestrator: over exactly the 24 slots
     closest to central London, and the scene shows exactly those 24 as markers.
+
+- Fix :LondonMapScene: so the Mapbox map loads its tiles and stays smooth at every zoom and pan.
+  - The night light preset and faded theme configuration must be applied to the map exactly once, and it must stick.
+    - It is applied at the first style event where the map reports its style is FULLY loaded — that is, where the
+      map's own "is the style loaded" check returns true — not merely when the style's layers first appear.
+      - Applying it before the style is fully loaded silently fails, leaving the map on its default day theme.
+    - After it has been applied successfully one time, a guard remembered across re-renders skips it forever after.
+  - This is critical: re-applying the style configuration on every style-update event makes the Mapbox Standard style
+    re-configure itself, which emits another style-update event, which re-applies it again — an endless loop.
+    - While that loop runs, the style never reaches a loaded state, so the map never requests or paints map tiles.
+    - The visible result is a blank, frozen map that will not load after zooming out or panning, plus heavy stutter.
+    - Applying the configuration only once, after the style is fully loaded, breaks the loop AND makes the night theme
+      take effect, so the map settles, shows the dark faded night style, and loads tiles normally.
+  - Once the one-time configuration has run, the style handler does no further work on later style events.
+  - Separately, the deck.gl overlay layers are rebuilt only when the auction data they depend on actually changes.
+    - They depend on the slots, the auction log, the clearing results, the live bid arcs, and the pulses.
+    - Moving the camera (panning or zooming) alone must not rebuild the overlay layers, so camera motion stays smooth.
+
+  ***acceptance tests***
+  - After the map's style first loads, the night-and-faded configuration is applied exactly one time, and subsequent
+    style-update events apply it zero further times, so the style reaches its loaded state and tiles render.
+  - Panning or zooming the map with unchanged auction data does not rebuild the deck.gl overlay layers.
+
+- Make every :BillboardSlot: unmistakable on :LondonMapScene: and let the user rotate the camera freely.
+  - Each slot is marked by a tall, bright vertical beam of light rising from its longitude and latitude.
+    - The beam is clearly taller than the surrounding buildings so a slot is easy to spot from any angle or zoom.
+    - The beam sits on top of a bright, pulsing glowing ring on the ground at the slot, so the exact spot reads clearly.
+    - Before a slot clears the beam and ring use a vivid, high-contrast highlight colour; once a slot clears they switch
+      to that slot's winning agent colour.
+  - The primary slot layer keeps its existing layer identifier and exactly one entry per :BillboardSlot:.
+    - The slot count and per-slot identity are unchanged; only the slot is drawn far more prominently than before.
+  - The user can rotate and tilt the camera freely.
+    - Dragging with the secondary (right) button or while holding a modifier key rotates and tilts the map.
+    - Touch and trackpad rotate/pitch gestures are enabled too.
+    - A navigation control with a compass sits in a corner that does not overlap the other panels; clicking its compass
+      resets the bearing to north.
+    - The camera bearing is part of the live view state, so rotation is reflected back into the scene.
+
+  ***acceptance tests***
+  - For an auction of 6 slots, the primary slot layer holds exactly 6 entries and each slot shows a tall highlight beam
+    above a glowing ring at its longitude and latitude.
+  - A navigation control with a compass is present, and rotating the camera updates the scene's bearing.
+
+- Add a :MiniMap: overview to :LondonMapScene: so the user always knows where they are.
+  - :MiniMap: is a small, flat, top-down 2D map inset in the top-right corner of the screen.
+    - It shows the same centre as the main map but zoomed out to a neighbourhood-to-city overview, with no tilt.
+    - A clear marker dot sits at the centre of :MiniMap: showing the user's current location on the main map.
+    - When the main map's centre moves, :MiniMap: re-centres to match.
+  - :MiniMap: is framed as a small glassmorphism card with rounded corners, matching the other floating panels.
+  - :MiniMap: is for orientation only: it is not interactive and never steals gestures from the main map.
+
+  ***acceptance tests***
+  - :MiniMap: renders in the top-right corner as a small 2D top-down map with a centre marker.
+  - When the main map centre changes, :MiniMap: re-centres to the same coordinates.
+
+- Declutter the :AuctionHUD: so the round ticker is compact and readable, never a screen-filling list.
+  - The :AuctionHUD: shows the round number and a one-line summary: how many slots are contested and the highest
+    standing bid right now.
+  - The standing-bid list is condensed.
+    - It shows only the few highest standing bids (at most the top five), sorted by amount, with the rest summarised as
+      a "+N more" line rather than listed.
+    - Each row uses a short, readable slot label (a leading tag plus the last few digits of the id), not the full id.
+    - The whole list sits in a fixed, modest maximum height and scrolls inside that height if needed; it never grows to
+      fill the screen.
+  - Agent budgets are shown compactly beneath the list.
+  - The :AuctionHUD: sits on the right side, below :MiniMap:, and never overlaps it.
+
+  ***acceptance tests***
+  - With a round of 24 contested slots, the :AuctionHUD: lists at most five standing-bid rows plus a "+19 more" summary,
+    and fits within its capped height instead of filling the screen.
+  - The :AuctionHUD: still shows the round number, the highest standing bid, and every agent's remaining budget.
+
+- Lighten the liquid glass on every floating panel so the map shows through more clearly.
+  - Every glass panel — the control panel, :MiniMap: frame, :AuctionHUD:, and each :ScorecardPanel: — uses a fill
+    opacity of about 20 percent (clearly more transparent than before).
+  - The background blur is reduced to a lighter frost rather than a heavy blur, so the map detail behind stays crisp.
+  - The hairline border, top sheen, rounded corners, and soft shadow stay; only the fill opacity and blur amount change.
+  - Text stays high-contrast and fully legible over the lighter glass.
+
+  ***acceptance tests***
+  - The control panel, :MiniMap: frame, :AuctionHUD:, and a :ScorecardPanel: each render with an approximately
+    20-percent-opacity fill and a lighter blur, while their content stays fully legible.
+
+- Make the night and faded map theme apply reliably and stay applied on :LondonMapScene:.
+  - The night light preset and faded theme are applied as soon as the map first loads.
+  - After applying the configuration, the code reads the values back to confirm they actually took effect.
+    - If the read-back does not yet show night and faded, the code applies the configuration again on the next map
+      event, and keeps retrying ONLY until the read-back confirms night and faded are active, then stops permanently.
+    - It also stops after a small fixed maximum number of attempts, so there is never an unbounded re-apply loop.
+  - The code must not skip applying the configuration based only on the map's is-style-loaded flag.
+    - That flag can stay false even when the configuration is settable, which would leave the map stuck on the bright
+      default day theme — the exact bug this fixes.
+
+  ***acceptance tests***
+  - A short time after the map loads, reading back the active light preset gives night and the active theme gives faded.
+  - Once night and faded are confirmed active, the configuration is not applied again (no endless re-apply).
+
+- Centre the camera on :LondonMapScene: on the billboards as soon as they load, through the view state.
+  - The first time :LondonMapScene: receives a non-empty set of :BillboardSlot: items (which happens when the user
+    starts the auction), it updates the camera once to look at the billboards.
+    - It sets the camera's centre longitude to the average of the slots' `lon` values and the centre latitude to the
+      average of the slots' `lat` values.
+    - It sets the zoom to a fixed overview level — about 14 — that shows the whole central-London cluster, and keeps the
+      existing tilt so the billboards still read in 3D.
+    - Only slots whose `lon` and `lat` are finite numbers are included in the averages; slots with missing or non-finite
+      coordinates are skipped.
+    - If no slot has finite `lon`/`lat`, the camera is left exactly as it is — it must never be set to a not-a-number
+      coordinate, which would crash the map.
+    - This billboard centring takes precedence over the geolocation centring whenever slots are present.
+  - The camera is moved only through the same view state the map already uses — its centre longitude, centre latitude,
+    and zoom — not through any separate map-instance method call.
+  - The centring runs once per set of billboards, when they first appear — never on every render — so the user can pan,
+    zoom, and rotate freely afterwards without the camera snapping back.
+
+  ***acceptance tests***
+  - When :LondonMapScene: first receives several billboards, the map's centre longitude and latitude become the average
+    of the slots' positions and the zoom becomes the fixed overview level, with no not-a-number coordinate.
+  - Re-rendering with that same set of billboards afterwards does not move the camera again.
+
+- Show each :BillboardSlot: as a small ad-style billboard panel stuck to its building, not a tall beam.
+  - The tall vertical light beam / pillar is removed entirely.
+  - In its place each slot shows a small, bright, flat advertising panel — like a lit billboard screen mounted on the
+    building at that spot.
+    - The panel is compact, roughly building-height (it sits near rooftop level at the slot's `lon`/`lat`), and never
+      taller than the surrounding buildings — it must read as a sign on a building, not a skyscraper-tall column.
+    - The panel faces the camera so it stays readable from any rotation, tilt, or zoom.
+    - The panel glows in a vivid highlight colour before the slot clears, then switches to the winning agent's colour
+      once the slot clears.
+  - A small, subtle glowing ring on the ground marks the exact spot, kept modest — not a large disk.
+  - The primary slot layer keeps its existing layer identifier and exactly one entry per :BillboardSlot:.
+    - The slot count and per-slot identity stay unchanged; only the shape of the marker changes.
+
+  ***acceptance tests***
+  - For an auction of 6 slots, the primary slot layer holds exactly 6 entries and each slot shows a small, camera-facing
+    billboard panel near building height at its `lon`/`lat`, with no tall beam.
+
+- Lay the agent scorecards out as a row along the bottom of the screen and group their repeated flagged actions.
+  - The :ScorecardPanel: cards are arranged in a single horizontal row spread across the bottom of the screen.
+    - One compact card per agent, evenly distributed across the width, instead of a tall vertical stack down one side.
+    - The row sits over the map along the bottom edge; the map stays visible above it.
+    - Each card has a fixed, modest height and never grows into a long internal scroll.
+  - Within each card, repeated identical flagged actions (concession errors) are grouped rather than listed one by one.
+    - Identical concession errors are collapsed into a single line carrying a count, for example "Premature Drop ×6".
+    - This grouping is display-only; the money figures still come verbatim from the :AgentScorecard:.
+  - Each card still shows surplusCaptured, overpayment, and leftOnTable, and click-to-explain still works on each figure.
+
+  ***acceptance tests***
+  - With four agents, exactly four :ScorecardPanel: cards render in a horizontal row along the bottom of the screen, not
+    a vertical stack.
+  - An agent with six identical premature-drop concession errors shows them as one grouped line with a count of six,
+    rather than six separate repeated lines.
+
+- Draw each :BillboardSlot: as a flat camera-facing billboard sign image, not a 3D cylinder or column.
+  - The slot marker is rendered as a flat, image-based icon that always faces the camera (a billboard-style icon),
+    positioned at the slot's `lon`/`lat` and lifted to roughly rooftop height so it reads as a sign on the building.
+    - It must NOT be an extruded 3D column, cylinder, or solid shape — it is a flat, screen-like sign that turns to
+      face the viewer at any rotation, tilt, or zoom.
+    - The icon looks like a small bright advertising screen: a rounded rectangle with a vivid glowing fill and a thin
+      bright border.
+    - Its size is set in screen pixels and kept small and roughly constant, so it stays a readable sign and never grows
+      into a giant object when zooming in.
+    - It glows in a vivid highlight colour before the slot clears, then takes the winning agent's colour once the slot
+      clears.
+  - A small, subtle glowing ground ring still marks the exact spot, kept modest.
+  - The primary slot layer keeps its existing layer identifier and exactly one entry per :BillboardSlot:, so the slot
+    count and per-slot identity are unchanged.
+
+  ***acceptance tests***
+  - For an auction of 6 slots, the primary slot layer holds exactly 6 entries, each positioned at its slot's `lon`/`lat`
+    and drawn as a flat camera-facing sign icon sized in screen pixels, with no extruded column or cylinder.

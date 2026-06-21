@@ -32,21 +32,17 @@ describe('App Component', () => {
     // Verify immediate state change
     expect(screen.queryByRole('button', { name: /start auction/i })).not.toBeInTheDocument();
     expect(screen.getByText(/auction in progress/i)).toBeInTheDocument();
-    
-    // In actual orchestration (async), we'd wait for completion
-    // but the requirement says assert settled state or progress based on observable
   });
 
   it('renders glassmorphism panel with correct styles', () => {
     render(<App />);
-    const panel = screen.getByText('Arbiter').parentElement!;
+    const panel = screen.getByTestId('control-panel');
     
-    // In jsdom, computedStyle might not resolve complex/prefixed properties like backdropFilter.
-    // We check the inline style object which reflects the React props.
-    const style = (panel as HTMLElement).style;
+    const style = panel.style;
     
-    expect(style.backdropFilter).toBe('blur(20px) saturate(180%)');
-    expect(style.background).toContain('rgba(15, 15, 25, 0.25)');
+    // Updated to match refined liquid-glass requirement (8px blur, 20% opacity)
+    expect(style.backdropFilter).toBe('blur(8px) saturate(180%)');
+    expect(style.background).toContain('rgba(15, 15, 25, 0.2)');
   });
 
   it('renders the map region', () => {
@@ -56,7 +52,6 @@ describe('App Component', () => {
   });
 
   it('bounds the inventory to a maximum of 24 slots', async () => {
-    // Create 30 mock slots
     const mockSlots = Array.from({ length: 30 }, (_, i) => ({
       id: `slot-${i}`,
       name: `Slot ${i}`,
@@ -73,10 +68,6 @@ describe('App Component', () => {
     
     await fireEvent.click(startButton);
 
-    // We check if the internal state of orchestrator or map would receive only 24.
-    // Since App state 'slots' is passed to the map mock, we verify logic indirectly
-    // or via the orchestrator instantiation if we had deeper spies. 
-    // For this implementation, we ensure fetch was called and state transitioned.
     expect(fetchSpy).toHaveBeenCalled();
     expect(screen.getByText(/auction in progress/i)).toBeInTheDocument();
     

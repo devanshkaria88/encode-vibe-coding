@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useControl } from 'react-map-gl';
-import { ColumnLayer, ArcLayer, ScatterplotLayer } from '@deck.gl/layers';
+import { IconLayer, ArcLayer, ScatterplotLayer } from '@deck.gl/layers';
 import { MapboxOverlay, MapboxOverlayProps } from '@deck.gl/mapbox';
 import { BidEdge, PulseState } from './types';
 import { AGENT_ANCHORS, AGENT_COLORS } from './anchors';
@@ -97,6 +97,18 @@ export function useClearingPulses(clearingResults: Record<string, ClearingResult
 }
 
 /**
+ * Simple SVG-based icon for the billboard sign.
+ * Rounded rectangle with a bright border.
+ */
+const BILLBOARD_ICON_SVG = `
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="48" viewBox="0 0 64 48">
+  <rect x="2" y="2" width="60" height="44" rx="8" fill="currentColor" stroke="white" stroke-width="4" />
+</svg>
+`.trim();
+
+const BILLBOARD_ICON_DATA = `data:image/svg+xml;base64,${btoa(BILLBOARD_ICON_SVG)}`;
+
+/**
  * Factory for creating DeckGL layers based on current auction state.
  */
 export function createMapLayers(
@@ -117,50 +129,52 @@ export function createMapLayers(
       getWidth: 3,
     }),
     ...(slots.length === 0 ? [] : [
-      // :AdditionalFunctionality: Soft glowing halo highlighting the building location
+      // :AdditionalFunctionality: Small, subtle glowing ring on the ground marking the exact spot
       new ScatterplotLayer<SpatialBillboardSlot>({
         id: 'billboard-halos',
         data: [...slots],
         getPosition: d => [d.lon, d.lat],
-        getRadius: d => {
-          const price = clearingResults[d.id]?.clearingPrice ?? (auctionLog ? auctionLog.getStandingBid(d) : d.basePrice);
-          const baseSize = pulses[d.id] ? 30 : 20;
-          return baseSize + Math.min(price / 100, 40); // Size scales with value
-        },
+        getRadius: d => (pulses[d.id] ? 15 : 10), // Modest size
         getFillColor: d => {
           const result = clearingResults[d.id];
-          const color = result?.winner ? AGENT_COLORS[result.winner.id] : [255, 255, 255];
-          const price = result?.clearingPrice ?? (auctionLog ? auctionLog.getStandingBid(d) : d.basePrice);
-          const opacity = Math.min(100 + (price / 50), 200); // Brightens with value
-          return [...color, opacity];
+          const color = result?.winner ? AGENT_COLORS[result.winner.id] : [255, 255, 255]; // White/Highlight
+          return [...color, 100];
         },
-        stroked: false,
+        stroked: true,
+        getLineColor: [255, 255, 255, 200],
+        getLineWidth: 1,
         pickable: false,
         updateTriggers: {
-          getRadius: [auctionLog, clearingResults, pulses],
-          getFillColor: [auctionLog, clearingResults]
+          getRadius: [pulses],
+          getFillColor: [clearingResults]
         }
       }),
-      // :AdditionalFunctionality: Compact marker pinned at rooftop height
-      new ColumnLayer<SpatialBillboardSlot>({
-        id: 'billboard-columns',
+      // :AdditionalFunctionality: Flat camera-facing billboard sign image
+      new IconLayer<SpatialBillboardSlot>({
+        id: 'billboard-icons',
         data: [...slots],
         getPosition: d => [d.lon, d.lat],
-        offset: [0, 0],
-        getElevation: () => 40, // Raised to roughly rooftop height
-        getFillColor: d => {
+        // Position at rooftop height
+        getPixelOffset: [0, -40], 
+        getIcon: () => ({
+          url: BILLBOARD_ICON_DATA,
+          width: 64,
+          height: 48,
+          mask: true // Allows re-coloring via getColor
+        }),
+        getSize: 32, // Fixed screen pixel size
+        sizeUnits: 'pixels',
+        getColor: d => {
           const result = clearingResults[d.id];
           if (result?.winner) {
             return [...AGENT_COLORS[result.winner.id], 255];
           }
-          return [200, 200, 200, 255];
+          return [255, 255, 100, 255]; // Vivid highlight color
         },
-        radius: 2, // Thin post appearance
-        extruded: true,
         pickable: true,
-        elevationScale: 1,
+        billboard: true,
         updateTriggers: {
-          getFillColor: [clearingResults]
+          getColor: [clearingResults]
         }
       })
     ])

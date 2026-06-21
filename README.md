@@ -23,9 +23,9 @@
 
 <div align="center">
 
-<img src="docs/shot_wide.png" alt="Arbiter — 3D night map of London with live billboard auction and liquid-glass scorecards" width="100%" />
+<img src="docs/shot_overview.png" alt="Arbiter — 3D night map of London with a live billboard auction, round ticker, minimap, and per-agent scorecards along the bottom" width="100%" />
 
-<sub>Live auction over central London — building‑anchored billboard markers, agent‑coloured highlights, and frosted liquid‑glass panels for the round ticker and per‑agent scorecards.</sub>
+<sub>A finished auction over London at night — billboard signs on their buildings, the round ticker and minimap floating top‑right, and one liquid‑glass scorecard per agent spread along the bottom.</sub>
 
 </div>
 
@@ -39,7 +39,7 @@ Programmatic ad‑buying is increasingly run by autonomous agents. But who refer
 2. **Runs a live auction** — four advertiser agents (backed by Claude, with a deterministic fallback) compete round‑by‑round in an ascending **English auction**, raising, holding, or dropping out on each contested slot.
 3. **Clears and scores** — when the dust settles, a **pure, deterministic clearing engine** prices every slot and a **referee** grades every agent. Every number is auditable back to the bids that produced it.
 
-The whole thing plays out on a **3D night map of London**: billboards are pinned to their buildings, bids arc across the city in each agent's colour, and frosted **liquid‑glass** panels float over the skyline showing the live round ticker and the final scorecards.
+The whole thing plays out on a **3D night map of London** (Mapbox Standard, faded night preset): each billboard shows as a bright sign fixed to its building, bids arc across the city in each agent's colour, and frosted **liquid‑glass** panels float over the skyline — a round ticker and a 2D minimap top‑right, and one scorecard per agent spread along the bottom. The camera frames the whole billboard cluster on start, and you can freely pan, zoom, and **rotate** to see the city from any angle.
 
 ## Why it's interesting
 
@@ -64,10 +64,10 @@ Worked example baked into the test suite — **scenario S1**: agent A privately 
 
 ## Gallery
 
-| Street level (zoom 19) | Auction & scorecards |
+| Piccadilly Circus at night | Per‑agent scorecards |
 | --- | --- |
-| <img src="docs/shot_initial.png" alt="Opening camera at zoom 19, down among the buildings" /> | <img src="docs/shot_auction.png" alt="Completed auction with liquid-glass scorecards and click-to-explain" /> |
-| The camera opens close to the ground (your location if you allow geolocation, otherwise central London) so the night‑mode 3D buildings read clearly. | When the auction settles, each agent gets a frosted scorecard — surplus, overpayment, value left on the table, and flagged concession errors. |
+| <img src="docs/shot_piccadilly.png" alt="Piccadilly Circus rendered in 3D at night, including the Piccadilly Lights advertising screen" /> | <img src="docs/v4_scorecards.png" alt="Four agent scorecards along the bottom of the screen with grouped concession errors" /> |
+| The Mapbox Standard style renders London's real landmarks in 3D — here Piccadilly Circus and the Piccadilly Lights screen, lit by the faded night preset. | When the auction settles, each agent gets a frosted glass card along the bottom — surplus, overpayment, value left on the table, and grouped concession flags — every figure click‑to‑explainable. |
 
 ## Architecture
 

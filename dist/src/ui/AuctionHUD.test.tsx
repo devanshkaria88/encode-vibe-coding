@@ -25,7 +25,12 @@ describe('AuctionHUD', () => {
   it('renders standing bids with slot names', () => {
     render(<AuctionHUD event={mockEvent} slots={mockSlots} />);
     expect(screen.getByText(/Piccadilly Circus/i)).toBeInTheDocument();
-    expect(screen.getByText(/£150/i)).toBeInTheDocument();
+    
+    // Find the specific bid value container to avoid collision with summary text
+    const bidValue = screen.getAllByText(/£150/i).find(el => 
+      el.parentElement?.textContent?.includes('Piccadilly Circus')
+    );
+    expect(bidValue).toBeDefined();
   });
 
   it('renders agent remaining budgets', () => {

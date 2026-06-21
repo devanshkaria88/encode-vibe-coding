@@ -3,21 +3,22 @@ import { render, screen } from '@testing-library/react';
 import React from 'react';
 import App from '../App';
 import AuctionHUD from './AuctionHUD';
+import ScorecardPanel from './ScorecardPanel';
 import { RoundEvent } from '../arena/types';
+import { AgentScorecard } from '../core/model';
 
-describe('Liquid Glass Styling Conformance', () => {
-  it('App control panel should have liquid glass styles', () => {
+describe('Liquid Glass Styling Conformance (Lightened)', () => {
+  it('App control panel should have lightened liquid glass styles', () => {
     render(<App />);
-    const panel = screen.getByText('Arbiter').parentElement!;
-    const style = panel.style;
-
-    expect(style.backdropFilter).toContain('blur(20px)');
-    expect(style.backdropFilter).toContain('saturate(180%)');
-    expect(style.background).toBe('rgba(15, 15, 25, 0.25)');
-    expect(style.boxShadow).toContain('inset 0 1px 0 0 rgba(255, 255, 255, 0.1)');
+    const panel = screen.getByTestId('control-panel');
+    
+    // Check for lightened background (20% opacity)
+    expect(panel.style.background).toBe('rgba(15, 15, 25, 0.2)');
+    // Check for reduced blur (8px)
+    expect(panel.style.backdropFilter).toContain('blur(8px)');
   });
 
-  it('AuctionHUD should have liquid glass styles', () => {
+  it('AuctionHUD should have lightened liquid glass styles', () => {
     const mockEvent: RoundEvent = {
       round: 1,
       standingBids: {},
@@ -25,12 +26,24 @@ describe('Liquid Glass Styling Conformance', () => {
       remainingBudgets: {}
     };
     render(<AuctionHUD event={mockEvent} slots={[]} />);
-    
-    const hud = screen.getByText(/Round 1/i).closest('div')?.parentElement!;
-    const style = hud.style;
+    const hud = screen.getByTestId('auction-hud');
 
-    expect(style.backdropFilter).toContain('blur(20px)');
-    expect(style.background).toBe('rgba(15, 15, 25, 0.25)');
-    expect(style.border).toBe('1px solid rgba(255, 255, 255, 0.15)');
+    expect(hud.style.background).toBe('rgba(15, 15, 25, 0.2)');
+    expect(hud.style.backdropFilter).toContain('blur(8px)');
+  });
+
+  it('ScorecardPanel should have lightened liquid glass styles', () => {
+    const mockScorecard: AgentScorecard = {
+      agentId: 'agent-1',
+      surplusCaptured: 100,
+      overpayment: 50,
+      leftOnTable: 0,
+      concessionErrors: []
+    };
+    render(<ScorecardPanel scorecard={mockScorecard} />);
+    const panel = screen.getByTestId('scorecard-agent-1');
+
+    expect(panel.style.background).toBe('rgba(15, 15, 25, 0.2)');
+    expect(panel.style.backdropFilter).toContain('blur(8px)');
   });
 });

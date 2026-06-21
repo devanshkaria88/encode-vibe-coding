@@ -18,19 +18,22 @@ const ScorecardOverlay: React.FC<ScorecardOverlayProps> = ({ scorecards, clearin
     <div style={{
       position: 'absolute',
       left: '20px',
+      right: '20px',
       bottom: '20px',
-      width: '320px',
-      maxHeight: '60vh',
-      overflowY: 'auto',
+      display: 'flex',
+      flexDirection: 'row',
+      gap: '16px',
+      justifyContent: 'space-around',
       zIndex: 20,
-      paddingRight: '10px' // Space for scrollbar
+      pointerEvents: 'none' // Allow map interaction between cards
     }}>
       {Object.values(scorecards).map(card => (
-        <ScorecardPanel 
-          key={card.agentId} 
-          scorecard={card} 
-          clearingResults={clearingResults || {}}
-        />
+        <div key={card.agentId} style={{ flex: 1, maxWidth: '400px', pointerEvents: 'auto' }}>
+          <ScorecardPanel 
+            scorecard={card} 
+            clearingResults={clearingResults || {}}
+          />
+        </div>
       ))}
     </div>
   );
